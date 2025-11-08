@@ -6,6 +6,7 @@ import { toast, ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import DataService from '../services/DataService';
 import type { EmailPayload } from '../services/DataService';
+import { EMAIL_BODY, EMAIL_SUBJECT, EMAIL_FILENAME } from '../constants/emailConstants';
 
 interface Release {
   id: number;
@@ -26,16 +27,6 @@ const Releases: React.FC = () => {
   const [showEmailModal, setShowEmailModal] = useState(false);
   const [emailRecipients, setEmailRecipients] = useState('');
   const [isScheduled, setIsScheduled] = useState(false);
-  
-  // Predefined email body
-  const EMAIL_BODY = `Dear Team,
-
-Please find attached the Competitive Intelligence Report containing the latest updates on competitor releases and market trends.
-
-Please review and let us know if you have any questions.
-
-Best regards,
-Eagle Eye Team`;
   const [scheduleTime, setScheduleTime] = useState('');
   const [scheduleFrequency, setScheduleFrequency] = useState<'daily' | 'weekly' | 'monthly' | ''>('');
   const [scheduleName, setScheduleName] = useState('');
@@ -234,9 +225,9 @@ Eagle Eye Team`;
       // Prepare API payload
       const payload: EmailPayload = {
         recipients: recipients,
-        subject: 'Competitive Intelligence',
+        subject: EMAIL_SUBJECT,
         body: EMAIL_BODY,
-        filename: 'Competitive Intelligence Report.pdf',
+        filename: EMAIL_FILENAME,
         byte_array_base64: base64String,
       };
 
