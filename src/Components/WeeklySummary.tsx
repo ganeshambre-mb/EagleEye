@@ -1,14 +1,18 @@
-import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import Summary from './Summary';
-import AlltimeInsights from './AlltimeInsights';
+import React, { useState, useRef } from 'react';
+import Summary, { type SummaryRef } from './Summary';
+import AlltimeInsights, { type AlltimeInsightsRef } from './AlltimeInsights';
 
 const WeeklySummary: React.FC = () => {
-  const navigate = useNavigate();
   const [weeklySubTab, setWeeklySubTab] = useState('Summary');
+  const summaryRef = useRef<SummaryRef>(null);
+  const alltimeInsightsRef = useRef<AlltimeInsightsRef>(null);
 
-  const handleConnectNotion = () => {
-    navigate('/connect-notion');
+  const handleDownloadPDF = () => {
+    if (weeklySubTab === 'Summary') {
+      summaryRef.current?.downloadPDF();
+    } else {
+      alltimeInsightsRef.current?.downloadPDF();
+    }
   };
 
   return (
@@ -19,21 +23,7 @@ const WeeklySummary: React.FC = () => {
           <p className="weekly-date">October 28 - November 3, 2025</p>
         </div>
         <div className="weekly-actions">
-          <button className="action-btn secondary-btn" onClick={handleConnectNotion}>
-            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-              <rect x="2" y="2" width="12" height="12" rx="2" stroke="currentColor" strokeWidth="1.5"/>
-              <text x="8" y="11" fontSize="8" fontWeight="700" textAnchor="middle" fill="currentColor" fontFamily="system-ui">N</text>
-            </svg>
-            Sync to Notion
-          </button>
-          <button className="action-btn secondary-btn">
-            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-              <path d="M2 4L8 9L14 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-              <rect x="2" y="3" width="12" height="10" rx="1" stroke="currentColor" strokeWidth="1.5"/>
-            </svg>
-            Send Email
-          </button>
-          <button className="action-btn primary-btn">
+          <button className="action-btn primary-btn" onClick={handleDownloadPDF}>
             <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
               <path d="M13 8V13H3V8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
               <path d="M8 3V10M8 10L5.5 7.5M8 10L10.5 7.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
@@ -68,10 +58,10 @@ const WeeklySummary: React.FC = () => {
       </div>
 
       {/* Summary Content */}
-      {weeklySubTab === 'Summary' && <Summary />}
+      {weeklySubTab === 'Summary' && <Summary ref={summaryRef} />}
 
       {/* All-Time Insights Content */}
-      {weeklySubTab === 'All-Time Insights' && <AlltimeInsights />}
+      {weeklySubTab === 'All-Time Insights' && <AlltimeInsights ref={alltimeInsightsRef} />}
     </div>
   );
 };
