@@ -4,7 +4,49 @@ export type SummaryRef = {
   downloadPDF: () => Promise<void>;
 }
 
-const Summary = forwardRef<SummaryRef>((props, ref) => {
+interface InsightsData {
+  monthly_statistics: {
+    current_month: {
+      month: string;
+      releases: number;
+    };
+    last_month: {
+      month: string;
+      releases: number;
+    };
+    trend: string;
+    trend_direction: 'up' | 'down';
+  };
+  most_active_company: {
+    company_name: string;
+    company_id: number;
+    release_count: number;
+  };
+  trending_category: {
+    category: string;
+    total_releases: number;
+    current_month_releases: number;
+    last_month_releases: number;
+  };
+  top_categories_current_month: Array<{
+    category: string;
+    releases: number;
+  }>;
+  overall_statistics: {
+    total_features: number;
+    total_companies: number;
+    total_categories: number;
+  };
+  generated_at: string;
+}
+
+interface SummaryProps {
+  insights: InsightsData | null;
+  isLoading: boolean;
+  error: string | null;
+}
+
+const Summary = forwardRef<SummaryRef, SummaryProps>(({ insights, isLoading, error }, ref) => {
   const summaryContentRef = useRef<HTMLDivElement>(null);
 
   const handleDownloadPDF = async () => {
@@ -63,6 +105,23 @@ const Summary = forwardRef<SummaryRef>((props, ref) => {
     downloadPDF: handleDownloadPDF
   }));
 
+  // Helper function to format category names
+  const formatCategory = (category: string): string => {
+    const categoryMap: { [key: string]: string } = {
+      'APPOINTMENTS': 'Appointments',
+      'ANALYTICS': 'Analytics',
+      'MARKETING_SUITE': 'Marketing Suite',
+      'MARKETING': 'Marketing',
+      'PAYMENTS': 'Payments',
+      'MOBILE': 'Mobile',
+      'MEMBERSHIP': 'Membership',
+      'OTHER': 'Other'
+    };
+    
+    return categoryMap[category.toUpperCase()] || 
+           category.charAt(0).toUpperCase() + category.slice(1).toLowerCase().replace(/_/g, ' ');
+  };
+
   return (
     <div ref={summaryContentRef}>
       {/* Top Insight Card */}
@@ -80,8 +139,9 @@ const Summary = forwardRef<SummaryRef>((props, ref) => {
         </div>
       </div>
 
-      {/* Weekly Stats Cards */}
-      <div className="weekly-stats-grid">
+      {/* Insights Widgets */}
+      <div className="weekly-stats-grid" style={{ marginTop: '20px', marginBottom: '30px' }}>
+        {/* Total Releases Widget */}
         <div className="weekly-stat-card">
           <div className="weekly-stat-header">
             <span className="weekly-stat-label">Total Releases</span>
@@ -92,10 +152,21 @@ const Summary = forwardRef<SummaryRef>((props, ref) => {
               </svg>
             </div>
           </div>
-          <p className="weekly-stat-value">18</p>
-          <p className="weekly-stat-change positive">+28% vs last week</p>
+          {isLoading ? (
+            <p className="weekly-stat-value">...</p>
+          ) : error ? (
+            <p className="weekly-stat-value" style={{ fontSize: '14px', color: '#ef4444' }}>Error</p>
+          ) : (
+            <>
+              <p className="weekly-stat-value">{insights?.monthly_statistics.current_month.releases || 0}</p>
+              <p className={`weekly-stat-change ${insights?.monthly_statistics.trend_direction === 'up' ? 'positive' : 'negative'}`}>
+                {insights?.monthly_statistics.trend_direction === 'up' ? '↑' : '↓'} {insights?.monthly_statistics.trend} vs last month
+              </p>
+            </>
+          )}
         </div>
 
+        {/* Most Active Company Widget */}
         <div className="weekly-stat-card">
           <div className="weekly-stat-header">
             <span className="weekly-stat-label">Most Active</span>
@@ -105,10 +176,19 @@ const Summary = forwardRef<SummaryRef>((props, ref) => {
               </svg>
             </div>
           </div>
-          <p className="weekly-stat-value">Zenoti</p>
-          <p className="weekly-stat-change purple-text">8 releases</p>
+          {isLoading ? (
+            <p className="weekly-stat-value">...</p>
+          ) : error ? (
+            <p className="weekly-stat-value" style={{ fontSize: '14px', color: '#ef4444' }}>Error</p>
+          ) : (
+            <>
+              <p className="weekly-stat-value">{insights?.most_active_company.company_name || 'N/A'}</p>
+              <p className="weekly-stat-change purple-text">{insights?.most_active_company.release_count || 0} releases</p>
+            </>
+          )}
         </div>
 
+        {/* Trending Category Widget */}
         <div className="weekly-stat-card">
           <div className="weekly-stat-header">
             <span className="weekly-stat-label">Trending Category</span>
@@ -119,10 +199,19 @@ const Summary = forwardRef<SummaryRef>((props, ref) => {
               </svg>
             </div>
           </div>
-          <p className="weekly-stat-value">Analytics</p>
-          <p className="weekly-stat-change purple-text">11 releases</p>
+          {isLoading ? (
+            <p className="weekly-stat-value">...</p>
+          ) : error ? (
+            <p className="weekly-stat-value" style={{ fontSize: '14px', color: '#ef4444' }}>Error</p>
+          ) : (
+            <>
+              <p className="weekly-stat-value">{insights ? formatCategory(insights.trending_category.category) : 'N/A'}</p>
+              <p className="weekly-stat-change purple-text">{insights?.trending_category.current_month_releases || 0} releases this month</p>
+            </>
+          )}
         </div>
       </div>
+
 
       {/* Release Breakdown by Competitor */}
       <div className="release-breakdown-section">

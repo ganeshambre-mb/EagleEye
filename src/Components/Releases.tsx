@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import html2canvas from 'html2canvas';
 import jsPDF from 'jspdf';
@@ -38,6 +38,8 @@ const Releases: React.FC = () => {
   const tableFooterRef = useRef<HTMLDivElement>(null);
   const [isSyncing, setIsSyncing] = useState(false);
   const [syncMessage, setSyncMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   
   // Category options for dropdown
   const categoryOptions = [
@@ -48,99 +50,119 @@ const Releases: React.FC = () => {
     'Mobile'
   ];
 
-  // Sample data with state management
-  const initialReleases: Release[] = [
-    {
-      id: 1,
-      competitor: 'Zenoti',
-      competitorInitial: 'Z',
-      competitorColor: '#a7f3d0',
-      feature: 'Advanced Customer Segmentation',
-      summary: 'New AI-powered customer segmentation with behavioral insights and predictive modeling.',
-      category: 'Analytics',
-      priority: 'High',
-      date: 'Nov 1, 2025'
-    },
-    {
-      id: 2,
-      competitor: 'Mindbody',
-      competitorInitial: 'M',
-      competitorColor: '#bfdbfe',
-      feature: 'Automated Appointment Reminders',
-      summary: 'Smart reminder system with multi-channel delivery (SMS, Email, Push) and customizable templates.',
-      category: 'Appointments',
-      priority: 'High',
-      date: 'Oct 31, 2025'
-    },
-    {
-      id: 3,
-      competitor: 'Boulevard',
-      competitorInitial: 'B',
-      competitorColor: '#a7f3d0',
-      feature: 'Marketing Campaign Builder',
-      summary: 'Drag-and-drop campaign builder with A/B testing and performance analytics.',
-      category: 'Marketing Suite',
-      priority: 'Medium',
-      date: 'Oct 29, 2025'
-    },
-    {
-      id: 4,
-      competitor: 'Zenoti',
-      competitorInitial: 'Z',
-      competitorColor: '#a7f3d0',
-      feature: 'Custom Report Designer',
-      summary: 'Visual report builder with 50+ pre-built templates and scheduled exports.',
-      category: 'Analytics',
-      priority: 'High',
-      date: 'Oct 27, 2025'
-    },
-    {
-      id: 5,
-      competitor: 'Vagaro',
-      competitorInitial: 'V',
-      competitorColor: '#c4b5fd',
-      feature: 'Mobile App Booking Flow',
-      summary: 'Redesigned mobile booking experience with 40% faster checkout process.',
-      category: 'Appointments',
-      priority: 'Medium',
-      date: 'Oct 26, 2025'
-    },
-    {
-      id: 6,
-      competitor: 'Boulevard',
-      competitorInitial: 'B',
-      competitorColor: '#a7f3d0',
-      feature: 'Client Retention Dashboard',
-      summary: 'Real-time retention metrics with churn prediction and win-back campaigns.',
-      category: 'Analytics',
-      priority: 'High',
-      date: 'Oct 24, 2025'
-    },
-    {
-      id: 7,
-      competitor: 'Mindbody',
-      competitorInitial: 'M',
-      competitorColor: '#bfdbfe',
-      feature: 'Email Marketing Templates',
-      summary: 'Library of 100+ professionally designed email templates for wellness businesses.',
-      category: 'Marketing Suite',
-      priority: 'Medium',
-      date: 'Oct 23, 2025'
-    },
-    {
-      id: 8,
-      competitor: 'Zenoti',
-      competitorInitial: 'Z',
-      competitorColor: '#a7f3d0',
-      feature: 'Waitlist Management',
-      summary: 'Automated waitlist with smart notifications and priority-based booking.',
-      category: 'Appointments',
-      priority: 'High',
-      date: 'Oct 21, 2025'
-    }
-  ];
+  // State for releases data
+  const [releases, setReleases] = useState<Release[]>([]);
 
-  const [releases, setReleases] = useState<Release[]>(initialReleases);
+  // Helper function to generate competitor color based on name
+  const getCompetitorColor = (competitor: string): string => {
+    const colors = ['#a7f3d0', '#bfdbfe', '#c4b5fd', '#fbbf24', '#f87171', '#34d399'];
+    const index = competitor.charCodeAt(0) % colors.length;
+    return colors[index];
+  };
+
+  // Helper function to format date
+  const formatDate = (dateString: string): string => {
+    const date = new Date(dateString);
+    const options: Intl.DateTimeFormatOptions = { month: 'short', day: 'numeric', year: 'numeric' };
+    return date.toLocaleDateString('en-US', options);
+  };
+
+  // Helper function to format category from API (e.g., "APPOINTMENTS" -> "Appointments")
+  const formatCategory = (category: string): string => {
+    // Map API categories to our dropdown options
+    const categoryMap: { [key: string]: string } = {
+      'APPOINTMENTS': 'Appointments',
+      'ANALYTICS': 'Analytics',
+      'MARKETING_SUITE': 'Marketing Suite',
+      'MARKETING': 'Marketing Suite',
+      'PAYMENTS': 'Payments',
+      'MOBILE': 'Mobile'
+    };
+    
+    // Return mapped category or format the original
+    return categoryMap[category.toUpperCase()] || 
+           category.charAt(0).toUpperCase() + category.slice(1).toLowerCase().replace(/_/g, ' ');
+  };
+
+  // Helper function to determine priority based on category or other logic
+  const determinePriority = (category: string): 'High' | 'Medium' | 'Low' => {
+    // You can customize this logic based on your business rules
+    const highPriorityCategories = ['APPOINTMENTS', 'PAYMENTS'];
+    const lowPriorityCategories = ['MOBILE'];
+    
+    if (highPriorityCategories.includes(category.toUpperCase())) {
+      return 'High';
+    } else if (lowPriorityCategories.includes(category.toUpperCase())) {
+      return 'Low';
+    }
+    return 'Medium';
+  };
+
+  // Helper function to check if a release is new (within last 7 days)
+  const isNewRelease = (dateString: string): boolean => {
+    const releaseDate = new Date(dateString);
+    const today = new Date();
+    const diffTime = Math.abs(today.getTime() - releaseDate.getTime());
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    return diffDays <= 7;
+  };
+
+  // Fetch releases data from API
+  useEffect(() => {
+    const fetchReleases = async () => {
+      setIsLoading(true);
+      setLoadError(null);
+      
+      try {
+        const response = await fetch('http://localhost:8000/features');
+        
+        if (!response.ok) {
+          throw new Error(`Failed to fetch: ${response.status} ${response.statusText}`);
+        }
+        
+        const data = await response.json();
+        
+        // Transform API data to match our Release interface
+        interface APIFeature {
+          id: number;
+          release_id: number;
+          name: string;
+          summary: string;
+          highlights?: string[];
+          category: string;
+          company_id: number;
+          company_name: string;
+          release_date: string;
+          version?: string | null;
+          assigned_category_id?: number | null;
+          category_confidence?: number | null;
+          created_at: string;
+        }
+        
+        const transformedReleases: Release[] = (data as APIFeature[]).map((item) => ({
+          id: item.id,
+          competitor: item.company_name,
+          competitorInitial: item.company_name.charAt(0).toUpperCase(),
+          competitorColor: getCompetitorColor(item.company_name),
+          feature: item.name,
+          summary: item.summary,
+          category: formatCategory(item.category),
+          priority: determinePriority(item.category),
+          date: formatDate(item.release_date)
+        }));
+        
+        setReleases(transformedReleases);
+      } catch (error) {
+        console.error('Error fetching releases:', error);
+        setLoadError(error instanceof Error ? error.message : 'Failed to load releases');
+        toast.error('Failed to load releases from API');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchReleases();
+  }, []);
 
   const handleCategoryChange = (releaseId: number, newCategory: string) => {
     setReleases(releases.map(release => 
@@ -419,6 +441,71 @@ const Releases: React.FC = () => {
 
   return (
     <>
+      {/* Loading State */}
+      {isLoading && (
+        <div style={{ 
+          display: 'flex', 
+          justifyContent: 'center', 
+          alignItems: 'center', 
+          padding: '50px',
+          fontSize: '18px',
+          color: '#6b7280'
+        }}>
+          <svg 
+            className="spinning" 
+            width="24" 
+            height="24" 
+            viewBox="0 0 24 24" 
+            fill="none"
+            style={{ marginRight: '10px', animation: 'spin 1s linear infinite' }}
+          >
+            <circle 
+              cx="12" 
+              cy="12" 
+              r="10" 
+              stroke="currentColor" 
+              strokeWidth="4" 
+              strokeLinecap="round"
+              strokeDasharray="31.4 31.4"
+              transform="rotate(-90 12 12)"
+            />
+          </svg>
+          Loading releases...
+        </div>
+      )}
+
+      {/* Error State */}
+      {loadError && !isLoading && (
+        <div style={{ 
+          padding: '20px', 
+          backgroundColor: '#fee2e2', 
+          color: '#dc2626',
+          borderRadius: '8px',
+          margin: '20px',
+          textAlign: 'center'
+        }}>
+          <p style={{ fontWeight: 'bold', marginBottom: '10px' }}>Failed to load releases</p>
+          <p style={{ fontSize: '14px', marginBottom: '15px' }}>{loadError}</p>
+          <button 
+            onClick={() => window.location.reload()}
+            style={{
+              padding: '8px 16px',
+              backgroundColor: '#dc2626',
+              color: 'white',
+              border: 'none',
+              borderRadius: '6px',
+              cursor: 'pointer',
+              fontSize: '14px'
+            }}
+          >
+            Retry
+          </button>
+        </div>
+      )}
+
+      {/* Main Content - Only show when not loading and no error */}
+      {!isLoading && !loadError && (
+        <>
       {/* Search and Re-run Bar */}
       <div className="search-bar-container">
         <div className="search-input-wrapper">
@@ -536,7 +623,7 @@ const Releases: React.FC = () => {
                     </div>
                     <div className="competitor-info">
                       <span className="competitor-name">{release.competitor}</span>
-                      {release.competitor === 'Zenoti' && release.id === 1 && (
+                      {isNewRelease(release.date) && (
                         <span className="new-badge">New</span>
                       )}
                     </div>
@@ -738,6 +825,8 @@ const Releases: React.FC = () => {
         pauseOnHover
         theme="light"
       />
+        </>
+      )}
     </>
   );
 };
