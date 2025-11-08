@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useNotion } from '../context/NotionContext';
 
 interface Release {
   id: number;
@@ -15,10 +16,22 @@ interface Release {
 
 const Releases: React.FC = () => {
   const navigate = useNavigate();
+  const { isConnected } = useNotion();
   const [searchQuery, setSearchQuery] = useState('');
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [syncMessage, setSyncMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
+  
+  // Category options for dropdown
+  const categoryOptions = [
+    'Analytics',
+    'Appointments',
+    'Marketing Suite',
+    'Payments',
+    'Mobile'
+  ];
 
-  // Sample data
-  const releases: Release[] = [
+  // Sample data with state management
+  const initialReleases: Release[] = [
     {
       id: 1,
       competitor: 'Zenoti',
@@ -109,8 +122,65 @@ const Releases: React.FC = () => {
     }
   ];
 
-  const handleConnectNotion = () => {
-    navigate('/connect-notion');
+  const [releases, setReleases] = useState<Release[]>(initialReleases);
+
+  const handleCategoryChange = (releaseId: number, newCategory: string) => {
+    setReleases(releases.map(release => 
+      release.id === releaseId 
+        ? { ...release, category: newCategory }
+        : release
+    ));
+  };
+
+  const handleConnectNotion = async () => {
+    if (!isConnected) {
+      // Navigate to connect page if not connected
+      navigate('/connect-notion');
+      return;
+    }
+
+    // Sync releases to Notion if already connected
+    setIsSyncing(true);
+    setSyncMessage(null);
+
+    try {
+      const response = await fetch('http://localhost:5000/api/notion/sync-releases', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ releases }),
+      });
+
+      const data = await response.json();
+
+      if (response.ok && data.success) {
+        console.log('✅ Successfully synced to Notion:', data);
+        setSyncMessage({ 
+          type: 'success', 
+          text: data.message || `Successfully synced ${releases.length} releases to Notion!` 
+        });
+        
+        // Auto-hide success message after 5 seconds
+        setTimeout(() => setSyncMessage(null), 5000);
+      } else {
+        console.error('❌ Sync failed:', data);
+        console.error('Status code:', data.statusCode);
+        console.error('Details:', data.details);
+        setSyncMessage({ 
+          type: 'error', 
+          text: `${data.error || 'Failed to sync to Notion'}${data.statusCode ? ` (${data.statusCode})` : ''}` 
+        });
+      }
+    } catch (error) {
+      console.error('❌ Network error:', error);
+      setSyncMessage({ 
+        type: 'error', 
+        text: 'Network error. Make sure backend is running.' 
+      });
+    } finally {
+      setIsSyncing(false);
+    }
   };
 
   return (
@@ -139,6 +209,24 @@ const Releases: React.FC = () => {
         </button>
       </div>
 
+      {/* Sync Status Message */}
+      {syncMessage && (
+        <div className={`sync-message ${syncMessage.type}`}>
+          {syncMessage.type === 'success' ? (
+            <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+              <circle cx="10" cy="10" r="9" fill="#10b981" />
+              <path d="M6 10L8.5 12.5L14 7" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          ) : (
+            <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+              <circle cx="10" cy="10" r="9" fill="#ef4444" />
+              <path d="M7 7L13 13M7 13L13 7" stroke="white" strokeWidth="2" strokeLinecap="round" />
+            </svg>
+          )}
+          <span>{syncMessage.text}</span>
+        </div>
+      )}
+
       {/* Action Buttons */}
       <div className="action-buttons">
         <button className="action-btn primary-btn">
@@ -147,12 +235,27 @@ const Releases: React.FC = () => {
           </svg>
           Add Manually
         </button>
-        <button className="action-btn secondary-btn" onClick={handleConnectNotion}>
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-            <rect x="2" y="2" width="12" height="12" rx="2" stroke="currentColor" strokeWidth="1.5"/>
-            <text x="8" y="11" fontSize="8" fontWeight="700" textAnchor="middle" fill="currentColor" fontFamily="system-ui">N</text>
-          </svg>
-          Connect Notion
+        <button 
+          className="action-btn secondary-btn" 
+          onClick={handleConnectNotion}
+          disabled={isSyncing}
+        >
+          {isSyncing ? (
+            <>
+              <svg className="spinning" width="16" height="16" viewBox="0 0 16 16" fill="none">
+                <path d="M8 2V4M8 12V14M14 8H12M4 8H2M12.2 12.2L10.8 10.8M5.2 5.2L3.8 3.8M12.2 3.8L10.8 5.2M5.2 10.8L3.8 12.2" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+              </svg>
+              Syncing...
+            </>
+          ) : (
+            <>
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                <rect x="2" y="2" width="12" height="12" rx="2" stroke="currentColor" strokeWidth="1.5"/>
+                <text x="8" y="11" fontSize="8" fontWeight="700" textAnchor="middle" fill="currentColor" fontFamily="system-ui">N</text>
+              </svg>
+              {isConnected ? 'Sync Notion' : 'Connect Notion'}
+            </>
+          )}
         </button>
         <button className="action-btn secondary-btn">
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
@@ -204,9 +307,17 @@ const Releases: React.FC = () => {
                 <td className="feature-cell">{release.feature}</td>
                 <td className="summary-cell">{release.summary}</td>
                 <td>
-                  <span className={`category-badge ${release.priority.toLowerCase()}`}>
-                    {release.category}
-                  </span>
+                  <select 
+                    className="category-dropdown"
+                    value={release.category}
+                    onChange={(e) => handleCategoryChange(release.id, e.target.value)}
+                  >
+                    {categoryOptions.map((category) => (
+                      <option key={category} value={category}>
+                        {category}
+                      </option>
+                    ))}
+                  </select>
                 </td>
                 <td className="date-cell">{release.date}</td>
               </tr>

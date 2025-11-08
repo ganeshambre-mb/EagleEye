@@ -1,8 +1,70 @@
-import React from 'react';
+import React, { useRef, forwardRef, useImperativeHandle } from 'react';
 
-const AlltimeInsights: React.FC = () => {
+export type AlltimeInsightsRef = {
+  downloadPDF: () => Promise<void>;
+}
+
+const AlltimeInsights = forwardRef<AlltimeInsightsRef>((props, ref) => {
+  const alltimeContentRef = useRef<HTMLDivElement>(null);
+
+  const handleDownloadPDF = async () => {
+    if (!alltimeContentRef.current) return;
+
+    try {
+      const html2canvas = (await import('html2canvas')).default;
+      const jsPDF = (await import('jspdf')).default;
+
+      const button = document.querySelector('.weekly-actions .action-btn') as HTMLButtonElement;
+      const originalText = button?.textContent;
+      if (button) button.textContent = 'Generating PDF...';
+
+      const canvas = await html2canvas(alltimeContentRef.current, {
+        scale: 2,
+        useCORS: true,
+        logging: false,
+        backgroundColor: '#ffffff'
+      });
+
+      const imgWidth = 210;
+      const pageHeight = 297;
+      const imgHeight = (canvas.height * imgWidth) / canvas.width;
+      let heightLeft = imgHeight;
+
+      const pdf = new jsPDF('p', 'mm', 'a4');
+      let position = 0;
+
+      const imgData = canvas.toDataURL('image/png');
+      pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+      heightLeft -= pageHeight;
+
+      while (heightLeft >= 0) {
+        position = heightLeft - imgHeight;
+        pdf.addPage();
+        pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+        heightLeft -= pageHeight;
+      }
+
+      const now = new Date();
+      const timestamp = now.toISOString().replace(/[:.]/g, '-').slice(0, -5);
+      const filename = `${timestamp}_AlltimeInsights.pdf`;
+
+      pdf.save(filename);
+
+      if (button) button.textContent = originalText;
+
+      console.log(`✅ PDF downloaded: ${filename}`);
+    } catch (error) {
+      console.error('❌ Error generating PDF:', error);
+      alert('Failed to generate PDF. Please try again.');
+    }
+  };
+
+  useImperativeHandle(ref, () => ({
+    downloadPDF: handleDownloadPDF
+  }));
+
   return (
-    <>
+    <div ref={alltimeContentRef}>
       {/* All-Time Insight Card */}
       <div className="alltime-insight-card">
         <div className="alltime-insight-icon">
@@ -115,9 +177,11 @@ const AlltimeInsights: React.FC = () => {
           </div>
         </div>
       </div>
-    </>
+    </div>
   );
-};
+});
+
+AlltimeInsights.displayName = 'AlltimeInsights';
 
 export default AlltimeInsights;
 

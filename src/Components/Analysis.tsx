@@ -1,7 +1,70 @@
-import React from 'react';
+import React, { useRef } from 'react';
 import { LineChart, Line, BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
 const Analysis: React.FC = () => {
+  const analysisContentRef = useRef<HTMLDivElement>(null);
+
+  const handleDownloadPDF = async () => {
+    if (!analysisContentRef.current) return;
+
+    try {
+      // Dynamic import to avoid loading these libraries unless needed
+      const html2canvas = (await import('html2canvas')).default;
+      const jsPDF = (await import('jspdf')).default;
+
+      // Show loading state
+      const button = document.querySelector('.export-snapshot-btn') as HTMLButtonElement;
+      const originalText = button?.textContent;
+      if (button) button.textContent = 'Generating PDF...';
+
+      // Capture the content as canvas
+      const canvas = await html2canvas(analysisContentRef.current, {
+        scale: 2, // Higher quality
+        useCORS: true,
+        logging: false,
+        backgroundColor: '#ffffff'
+      });
+
+      // Calculate dimensions
+      const imgWidth = 210; // A4 width in mm
+      const pageHeight = 297; // A4 height in mm
+      const imgHeight = (canvas.height * imgWidth) / canvas.width;
+      let heightLeft = imgHeight;
+
+      // Create PDF
+      const pdf = new jsPDF('p', 'mm', 'a4');
+      let position = 0;
+
+      // Add image to PDF
+      const imgData = canvas.toDataURL('image/png');
+      pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+      heightLeft -= pageHeight;
+
+      // Add new pages if content is longer than one page
+      while (heightLeft >= 0) {
+        position = heightLeft - imgHeight;
+        pdf.addPage();
+        pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+        heightLeft -= pageHeight;
+      }
+
+      // Generate filename with current timestamp
+      const now = new Date();
+      const timestamp = now.toISOString().replace(/[:.]/g, '-').slice(0, -5); // Format: YYYY-MM-DDTHH-MM-SS
+      const filename = `${timestamp}_Analysis.pdf`;
+
+      // Save the PDF
+      pdf.save(filename);
+
+      // Restore button text
+      if (button) button.textContent = originalText;
+
+      console.log(`✅ PDF downloaded: ${filename}`);
+    } catch (error) {
+      console.error('❌ Error generating PDF:', error);
+      alert('Failed to generate PDF. Please try again.');
+    }
+  };
   // Chart data for Weekly Release Trend
   const weeklyData = [
     { week: 'Week 1', releases: 12 },
@@ -31,18 +94,18 @@ const Analysis: React.FC = () => {
   ];
 
   return (
-    <div className="analysis-content">
+    <div className="analysis-content" ref={analysisContentRef}>
       <div className="analysis-header">
         <div>
           <h2 className="analysis-title">Competitive Analysis</h2>
           <p className="analysis-subtitle">Insights and trends across all tracked competitors</p>
         </div>
-        <button className="export-snapshot-btn">
+        <button className="export-snapshot-btn" onClick={handleDownloadPDF}>
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
             <path d="M13 8V13H3V8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
             <path d="M8 3V10M8 10L5.5 7.5M8 10L10.5 7.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
           </svg>
-          Export Snapshot
+          Download PDF
         </button>
       </div>
 
