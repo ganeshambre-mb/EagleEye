@@ -16,7 +16,8 @@ const ConnectToNotion: React.FC = () => {
       console.log('Exchanging code for token...', code);
       
       // Send code to backend to exchange for access token
-      const response = await fetch('http://localhost:5000/api/notion/exchange-token', {
+      const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
+      const response = await fetch(`${backendUrl}/api/notion/exchange-token`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -101,9 +102,17 @@ const ConnectToNotion: React.FC = () => {
   }, [searchParams, navigate, exchangeCodeForToken]);
 
   const handleConnectNotion = () => {
-    const clientId = "2a4d872b-594c-8020-a0d2-0037270035f7";
-    const redirectUri = encodeURIComponent("http://localhost:5174/connect-notion");
+    const clientId = import.meta.env.VITE_NOTION_CLIENT_ID;
+    const redirectUri = encodeURIComponent(import.meta.env.VITE_REDIRECT_URI || "http://localhost:5174/connect-notion");
+    
+    if (!clientId) {
+      console.error('❌ Notion Client ID not configured');
+      alert('Configuration error: Notion Client ID is missing. Please check your .env file.');
+      return;
+    }
+
     const notionAuthUrl = `https://api.notion.com/v1/oauth/authorize?client_id=${clientId}&response_type=code&owner=user&redirect_uri=${redirectUri}`;
+    console.log('🔐 Initiating Notion OAuth...');
     window.location.href = notionAuthUrl;
   };
 

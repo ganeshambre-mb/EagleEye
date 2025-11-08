@@ -23,7 +23,8 @@ export const NotionProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     // Optionally check with backend on mount
     const checkConnectionStatus = async () => {
       try {
-        const response = await fetch('http://localhost:5000/api/notion/status');
+        const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
+        const response = await fetch(`${backendUrl}/api/notion/status`);
         const data = await response.json();
         if (data.connected) {
           setIsConnected(true);

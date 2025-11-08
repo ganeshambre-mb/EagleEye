@@ -28,11 +28,23 @@ app.post("/api/notion/exchange-token", async (req, res) => {
     return res.status(400).json({ success: false, error: "No authorization code provided" });
   }
 
+  const clientId = process.env.NOTION_CLIENT_ID;
+  const clientSecret = process.env.NOTION_CLIENT_SECRET;
+  const redirectUri = process.env.REDIRECT_URI || "http://localhost:5174/connect-notion";
+
+  if (!clientId || !clientSecret) {
+    console.error('❌ Missing Notion credentials in environment variables');
+    return res.status(500).json({ 
+      success: false, 
+      error: "Server configuration error: Missing Notion credentials" 
+    });
+  }
+
   console.log('🔄 Exchanging code with Notion API...');
   console.log('Configuration:', {
-    redirectUri: "http://localhost:5174/connect-notion",
-    clientId: '2a4d872b-594c-8020-a0d2-0037270035f7',
-    clientSecret: 'secret_7fl0DVAO9ocYGsScatqDooBuInMPaNEIJ6R8A23X6p2',
+    redirectUri,
+    clientId: clientId ? `${clientId.substring(0, 8)}...` : 'NOT SET',
+    clientSecret: clientSecret ? '***' : 'NOT SET',
   });
   
   try {
@@ -42,12 +54,12 @@ app.post("/api/notion/exchange-token", async (req, res) => {
       {
         grant_type: "authorization_code",
         code,
-        redirect_uri: "http://localhost:5174/connect-notion",
+        redirect_uri: redirectUri,
       },
       {
         auth: {
-          username: '2a4d872b-594c-8020-a0d2-0037270035f7',
-          password: 'secret_7fl0DVAO9ocYGsScatqDooBuInMPaNEIJ6R8A23X6p2',
+          username: clientId,
+          password: clientSecret,
         },
         headers: {
           "Content-Type": "application/json",

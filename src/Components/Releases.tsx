@@ -144,7 +144,8 @@ const Releases: React.FC = () => {
     setSyncMessage(null);
 
     try {
-      const response = await fetch('http://localhost:5000/api/notion/sync-releases', {
+      const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
+      const response = await fetch(`${backendUrl}/api/notion/sync-releases`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
