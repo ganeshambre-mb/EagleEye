@@ -2,6 +2,8 @@ import React, { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import html2canvas from 'html2canvas';
 import jsPDF from 'jspdf';
+import { toast, ToastContainer } from 'react-toastify';
+import 'react-toastify/dist/ReactToastify.css';
 
 interface Release {
   id: number;
@@ -287,9 +289,9 @@ const Releases: React.FC = () => {
           } else if (scheduleFrequency === 'monthly') {
             scheduleDetails += ` on day ${scheduleDayOfMonth}`;
           }
-          alert(`Email schedule${nameText} created successfully (${frequencyText}${scheduleDetails}) to: ${result.sent_to.join(', ')}`);
+          toast.success(`Email schedule${nameText} created successfully (${frequencyText}${scheduleDetails}) to: ${result.sent_to.join(', ')}`);
         } else {
-          alert(`Email sent successfully to: ${result.sent_to.join(', ')}`);
+          toast.success(`Email sent successfully to: ${result.sent_to.join(', ')}`);
         }
         setShowEmailModal(false);
         setIsScheduled(false);
@@ -300,11 +302,11 @@ const Releases: React.FC = () => {
         setScheduleDayOfMonth(1);
         setEmailRecipients('');
       } else {
-        alert(`Failed to send email: ${result.message}`);
+        toast.error(`Failed to send email: ${result.message}`);
       }
     } catch (error) {
       console.error('Error sending email:', error);
-      alert('Failed to send email. Please try again.');
+      toast.error('Failed to send email. Please try again.');
     } finally {
       setIsSending(false);
     }
@@ -312,7 +314,7 @@ const Releases: React.FC = () => {
 
   const handleSendEmailSubmit = async () => {
     if (!emailRecipients.trim()) {
-      alert('Please enter at least one email address');
+      toast.warning('Please enter at least one email address');
       return;
     }
 
@@ -322,38 +324,38 @@ const Releases: React.FC = () => {
     const invalidEmails = emails.filter(email => !emailRegex.test(email));
     
     if (invalidEmails.length > 0) {
-      alert(`Invalid email addresses: ${invalidEmails.join(', ')}`);
+      toast.error(`Invalid email addresses: ${invalidEmails.join(', ')}`);
       return;
     }
 
     // Validate scheduling if enabled
     if (isScheduled) {
       if (!scheduleFrequency) {
-        alert('Please select a frequency for the scheduled email');
+        toast.warning('Please select a frequency for the scheduled email');
         return;
       }
       
       if (!scheduleName.trim()) {
-        alert('Please enter a name for the scheduled email');
+        toast.warning('Please enter a name for the scheduled email');
         return;
       }
       
       // Validate time for all frequencies
       if (!scheduleTime) {
-        alert('Please select a time for the schedule');
+        toast.warning('Please select a time for the schedule');
         return;
       }
       
       // Validate day of week for weekly frequency
       if (scheduleFrequency === 'weekly' && scheduleDayOfWeek === undefined) {
-        alert('Please select a day of the week');
+        toast.warning('Please select a day of the week');
         return;
       }
       
       // Validate day of month for monthly frequency
       if (scheduleFrequency === 'monthly') {
         if (!scheduleDayOfMonth || scheduleDayOfMonth < 1 || scheduleDayOfMonth > 31) {
-          alert('Please select a valid day of the month (1-31)');
+          toast.warning('Please select a valid day of the month (1-31)');
           return;
         }
       }
@@ -628,6 +630,20 @@ const Releases: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* Toast Container */}
+      <ToastContainer
+        position="bottom-left"
+        autoClose={5000}
+        hideProgressBar={false}
+        newestOnTop={false}
+        closeOnClick
+        rtl={false}
+        pauseOnFocusLoss
+        draggable
+        pauseOnHover
+        theme="light"
+      />
     </>
   );
 };
