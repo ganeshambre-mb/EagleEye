@@ -3,7 +3,26 @@ import Summary, { type SummaryRef } from './Summary';
 import AlltimeInsights, { type AlltimeInsightsRef } from './AlltimeInsights';
 
 interface InsightsData {
-  monthly_statistics: {
+  weekly_statistics?: {
+    current_week: {
+      week_start: string;
+      week_end: string;
+      releases: number;
+    };
+    last_week: {
+      week_start: string;
+      week_end: string;
+      releases: number;
+    };
+    week_before_last?: {
+      week_start: string;
+      week_end: string;
+      releases: number;
+    };
+    trend: string;
+    trend_direction: 'up' | 'down';
+  };
+  monthly_statistics?: {
     current_month: {
       month: string;
       releases: number;
@@ -19,15 +38,36 @@ interface InsightsData {
     company_name: string;
     company_id: number;
     release_count: number;
+    last_week_releases?: number;
+    change?: number;
   };
   trending_category: {
     category: string;
-    total_releases: number;
-    current_month_releases: number;
-    last_month_releases: number;
+    current_week?: number;
+    last_week?: number;
+    growth?: number;
+    growth_rate?: number;
+    total_releases?: number;
+    current_month_releases?: number;
+    last_month_releases?: number;
   };
-  top_categories_current_month: Array<{
+  top_categories_current_week?: Array<{
     category: string;
+    releases: number;
+  }>;
+  top_categories_current_month?: Array<{
+    category: string;
+    releases: number;
+  }>;
+  daily_breakdown?: Array<{
+    day: string;
+    date: string;
+    releases: number;
+  }>;
+  weekly_trend?: Array<{
+    week: string;
+    start_date: string;
+    end_date: string;
     releases: number;
   }>;
   overall_statistics: {
@@ -46,24 +86,25 @@ const WeeklySummary: React.FC = () => {
   const summaryRef = useRef<SummaryRef>(null);
   const alltimeInsightsRef = useRef<AlltimeInsightsRef>(null);
 
-  // Fetch insights data from API
+  // Fetch weekly insights data from API
   useEffect(() => {
     const fetchInsights = async () => {
       setIsLoading(true);
       setError(null);
       
       try {
-        const response = await fetch('http://localhost:8000/insights');
+        const response = await fetch('http://localhost:8000/insights/weekly');
         
         if (!response.ok) {
           throw new Error(`Failed to fetch: ${response.status} ${response.statusText}`);
         }
         
         const data = await response.json();
+        console.log('Weekly insights data received:', data);
         setInsights(data);
       } catch (error) {
-        console.error('Error fetching insights:', error);
-        setError(error instanceof Error ? error.message : 'Failed to load insights');
+        console.error('Error fetching weekly insights:', error);
+        setError(error instanceof Error ? error.message : 'Failed to load weekly insights');
       } finally {
         setIsLoading(false);
       }
@@ -86,7 +127,12 @@ const WeeklySummary: React.FC = () => {
       <div className="weekly-header">
         <div>
           <h2 className="weekly-title">Weekly Summary</h2>
-          <p className="weekly-date">{insights?.monthly_statistics.current_month.month || 'Loading...'}</p>
+          <p className="weekly-date">
+            {insights?.weekly_statistics 
+              ? `Week of ${insights.weekly_statistics.current_week.week_start} to ${insights.weekly_statistics.current_week.week_end}`
+              : insights?.monthly_statistics?.current_month?.month || 
+                'Loading...'}
+          </p>
         </div>
         <div className="weekly-actions">
           <button className="action-btn primary-btn" onClick={handleDownloadPDF}>

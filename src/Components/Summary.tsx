@@ -5,7 +5,26 @@ export type SummaryRef = {
 }
 
 interface InsightsData {
-  monthly_statistics: {
+  weekly_statistics?: {
+    current_week: {
+      week_start: string;
+      week_end: string;
+      releases: number;
+    };
+    last_week: {
+      week_start: string;
+      week_end: string;
+      releases: number;
+    };
+    week_before_last?: {
+      week_start: string;
+      week_end: string;
+      releases: number;
+    };
+    trend: string;
+    trend_direction: 'up' | 'down';
+  };
+  monthly_statistics?: {
     current_month: {
       month: string;
       releases: number;
@@ -21,15 +40,36 @@ interface InsightsData {
     company_name: string;
     company_id: number;
     release_count: number;
+    last_week_releases?: number;
+    change?: number;
   };
   trending_category: {
     category: string;
-    total_releases: number;
-    current_month_releases: number;
-    last_month_releases: number;
+    current_week?: number;
+    last_week?: number;
+    growth?: number;
+    growth_rate?: number;
+    total_releases?: number;
+    current_month_releases?: number;
+    last_month_releases?: number;
   };
-  top_categories_current_month: Array<{
+  top_categories_current_week?: Array<{
     category: string;
+    releases: number;
+  }>;
+  top_categories_current_month?: Array<{
+    category: string;
+    releases: number;
+  }>;
+  daily_breakdown?: Array<{
+    day: string;
+    date: string;
+    releases: number;
+  }>;
+  weekly_trend?: Array<{
+    week: string;
+    start_date: string;
+    end_date: string;
     releases: number;
   }>;
   overall_statistics: {
@@ -132,10 +172,57 @@ const Summary = forwardRef<SummaryRef, SummaryProps>(({ insights, isLoading, err
           </svg>
         </div>
         <div>
-          <h3 className="top-insight-title">This Week's Top Insight</h3>
-          <p className="top-insight-text">
-            <strong>Zenoti dominated this week</strong> with 8 major releases focused on analytics and customer intelligence. They're clearly doubling down on data-driven features to compete with newer entrants.
-          </p>
+          <h3 className="top-insight-title" style={{ textAlign: 'left' }}>This Week's Top Insight</h3>
+          {isLoading ? (
+            <p className="top-insight-text" style={{ textAlign: 'left' }}>Loading insights...</p>
+          ) : error ? (
+            <p className="top-insight-text" style={{ textAlign: 'left', color: '#ef4444' }}>Unable to load insights</p>
+          ) : insights ? (
+            <p className="top-insight-text" style={{ textAlign: 'left' }}>
+              {(() => {
+                const company = insights.most_active_company?.company_name || 'Unknown';
+                const releases = insights.most_active_company?.release_count || 0;
+                const topCategory = insights.trending_category?.category ? formatCategory(insights.trending_category.category) : 'various categories';
+                const categoryReleases = insights.trending_category?.current_week || insights.trending_category?.current_month_releases || 0;
+                const trend = insights.weekly_statistics?.trend || insights.monthly_statistics?.trend || '';
+                
+                // Generate dynamic insight based on the data
+                if (insights.weekly_statistics && parseFloat(trend) > 1000) {
+                  return (
+                    <>
+                      <strong>{company} had an exceptional week</strong> with {releases} releases, representing a massive {trend} increase. 
+                      The focus on {topCategory.toLowerCase()} ({categoryReleases} releases) shows a clear strategic priority in this area.
+                    </>
+                  );
+                } else if (insights.most_active_company?.change && insights.most_active_company.change > 50) {
+                  return (
+                    <>
+                      <strong>{company} significantly accelerated their release velocity</strong> with {releases} releases this week, 
+                      up by {insights.most_active_company.change} from last week. {topCategory} emerged as the key focus area.
+                    </>
+                  );
+                } else if (releases > 0) {
+                  return (
+                    <>
+                      <strong>{company} led this week</strong> with {releases} releases. 
+                      The emphasis on {topCategory.toLowerCase()} ({categoryReleases} releases) indicates their current development priorities.
+                    </>
+                  );
+                } else {
+                  return (
+                    <>
+                      <strong>Release activity was moderate this week</strong> with {topCategory.toLowerCase()} being the most active category. 
+                      Teams appear to be in a consolidation phase.
+                    </>
+                  );
+                }
+              })()}
+            </p>
+          ) : (
+            <p className="top-insight-text" style={{ textAlign: 'left' }}>
+              <strong>No data available</strong> for this week's insights. Check back later for updated information.
+            </p>
+          )}
         </div>
       </div>
 
@@ -144,7 +231,7 @@ const Summary = forwardRef<SummaryRef, SummaryProps>(({ insights, isLoading, err
         {/* Total Releases Widget */}
         <div className="weekly-stat-card">
           <div className="weekly-stat-header">
-            <span className="weekly-stat-label">Total Releases</span>
+            <span className="weekly-stat-label" style={{ textAlign: 'left' }}>Total Releases</span>
             <div className="weekly-stat-icon blue">
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
                 <path d="M3 17L9 11L13 15L21 7" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
@@ -153,14 +240,22 @@ const Summary = forwardRef<SummaryRef, SummaryProps>(({ insights, isLoading, err
             </div>
           </div>
           {isLoading ? (
-            <p className="weekly-stat-value">...</p>
+            <p className="weekly-stat-value" style={{ textAlign: 'left' }}>...</p>
           ) : error ? (
-            <p className="weekly-stat-value" style={{ fontSize: '14px', color: '#ef4444' }}>Error</p>
+            <p className="weekly-stat-value" style={{ fontSize: '14px', color: '#ef4444', textAlign: 'left' }}>Error</p>
           ) : (
             <>
-              <p className="weekly-stat-value">{insights?.monthly_statistics.current_month.releases || 0}</p>
-              <p className={`weekly-stat-change ${insights?.monthly_statistics.trend_direction === 'up' ? 'positive' : 'negative'}`}>
-                {insights?.monthly_statistics.trend_direction === 'up' ? '↑' : '↓'} {insights?.monthly_statistics.trend} vs last month
+              <p className="weekly-stat-value" style={{ textAlign: 'left' }}>
+                {insights?.weekly_statistics?.current_week?.releases || 
+                 insights?.monthly_statistics?.current_month?.releases || 0}
+              </p>
+              <p className={`weekly-stat-change ${
+                (insights?.weekly_statistics?.trend_direction || insights?.monthly_statistics?.trend_direction) === 'up' 
+                  ? 'positive' : 'negative'
+              }`} style={{ textAlign: 'left' }}>
+                {(insights?.weekly_statistics?.trend_direction || insights?.monthly_statistics?.trend_direction) === 'up' ? '↑' : '↓'} 
+                {insights?.weekly_statistics?.trend || insights?.monthly_statistics?.trend || ''} 
+                {insights?.weekly_statistics ? ' vs last week' : ' vs last month'}
               </p>
             </>
           )}
@@ -169,7 +264,7 @@ const Summary = forwardRef<SummaryRef, SummaryProps>(({ insights, isLoading, err
         {/* Most Active Company Widget */}
         <div className="weekly-stat-card">
           <div className="weekly-stat-header">
-            <span className="weekly-stat-label">Most Active</span>
+            <span className="weekly-stat-label" style={{ textAlign: 'left' }}>Most Active</span>
             <div className="weekly-stat-icon purple">
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
                 <path d="M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2Z" fill="currentColor"/>
@@ -177,13 +272,13 @@ const Summary = forwardRef<SummaryRef, SummaryProps>(({ insights, isLoading, err
             </div>
           </div>
           {isLoading ? (
-            <p className="weekly-stat-value">...</p>
+            <p className="weekly-stat-value" style={{ textAlign: 'left' }}>...</p>
           ) : error ? (
-            <p className="weekly-stat-value" style={{ fontSize: '14px', color: '#ef4444' }}>Error</p>
+            <p className="weekly-stat-value" style={{ fontSize: '14px', color: '#ef4444', textAlign: 'left' }}>Error</p>
           ) : (
             <>
-              <p className="weekly-stat-value">{insights?.most_active_company.company_name || 'N/A'}</p>
-              <p className="weekly-stat-change purple-text">{insights?.most_active_company.release_count || 0} releases</p>
+              <p className="weekly-stat-value" style={{ textAlign: 'left' }}>{insights?.most_active_company.company_name || 'N/A'}</p>
+              <p className="weekly-stat-change purple-text" style={{ textAlign: 'left' }}>{insights?.most_active_company.release_count || 0} releases</p>
             </>
           )}
         </div>
@@ -191,7 +286,7 @@ const Summary = forwardRef<SummaryRef, SummaryProps>(({ insights, isLoading, err
         {/* Trending Category Widget */}
         <div className="weekly-stat-card">
           <div className="weekly-stat-header">
-            <span className="weekly-stat-label">Trending Category</span>
+            <span className="weekly-stat-label" style={{ textAlign: 'left' }}>Trending Category</span>
             <div className="weekly-stat-icon purple">
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
                 <path d="M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2Z" fill="currentColor"/>
@@ -200,13 +295,17 @@ const Summary = forwardRef<SummaryRef, SummaryProps>(({ insights, isLoading, err
             </div>
           </div>
           {isLoading ? (
-            <p className="weekly-stat-value">...</p>
+            <p className="weekly-stat-value" style={{ textAlign: 'left' }}>...</p>
           ) : error ? (
-            <p className="weekly-stat-value" style={{ fontSize: '14px', color: '#ef4444' }}>Error</p>
+            <p className="weekly-stat-value" style={{ fontSize: '14px', color: '#ef4444', textAlign: 'left' }}>Error</p>
           ) : (
             <>
-              <p className="weekly-stat-value">{insights ? formatCategory(insights.trending_category.category) : 'N/A'}</p>
-              <p className="weekly-stat-change purple-text">{insights?.trending_category.current_month_releases || 0} releases this month</p>
+              <p className="weekly-stat-value" style={{ textAlign: 'left' }}>{insights ? formatCategory(insights.trending_category.category) : 'N/A'}</p>
+              <p className="weekly-stat-change purple-text" style={{ textAlign: 'left' }}>
+                {insights?.trending_category?.current_week || 
+                 insights?.trending_category?.current_month_releases || 0} releases 
+                {insights?.weekly_statistics ? ' this week' : ' this month'}
+              </p>
             </>
           )}
         </div>

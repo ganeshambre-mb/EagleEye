@@ -356,19 +356,19 @@ const Analysis: React.FC = () => {
             </svg>
           </div>
           <div className="insight-content">
-            <h3 className="insight-title">📊 Trending Insight</h3>
+            <h3 className="insight-title" style={{ textAlign: 'left' }}>📊 Trending Insight</h3>
             {isLoading ? (
-              <p className="insight-text">Loading insights...</p>
+              <p className="insight-text" style={{ textAlign: 'left' }}>Loading insights...</p>
             ) : error ? (
-              <p className="insight-text" style={{ color: '#ef4444' }}>Error loading data</p>
+              <p className="insight-text" style={{ color: '#ef4444', textAlign: 'left' }}>Error loading data</p>
             ) : insights ? (
-              <p className="insight-text" dangerouslySetInnerHTML={{ 
+              <p className="insight-text" style={{ textAlign: 'left' }} dangerouslySetInnerHTML={{ 
                 __html: insights.trending_insight
                   .replace(/\+?\d+%/g, (match) => `<strong class="highlight-teal">${match}</strong>`)
                   .replace(/\d+ features?/g, (match) => `<strong class="highlight-teal">${match}</strong>`)
               }} />
             ) : (
-              <p className="insight-text">
+              <p className="insight-text" style={{ textAlign: 'left' }}>
                 Leading company released <strong className="highlight-teal">45 new features</strong> this month, 
                 representing a <strong className="highlight-teal">+15%</strong> trend overall.
               </p>
@@ -386,20 +386,20 @@ const Analysis: React.FC = () => {
             </svg>
           </div>
           <div className="insight-content">
-            <h3 className="insight-title">🏆 Category Leader</h3>
+            <h3 className="insight-title" style={{ textAlign: 'left' }}>🏆 Category Leader</h3>
             {isLoading ? (
-              <p className="insight-text">Loading insights...</p>
+              <p className="insight-text" style={{ textAlign: 'left' }}>Loading insights...</p>
             ) : error ? (
-              <p className="insight-text" style={{ color: '#ef4444' }}>Error loading data</p>
+              <p className="insight-text" style={{ color: '#ef4444', textAlign: 'left' }}>Error loading data</p>
             ) : insights ? (
-              <p className="insight-text" dangerouslySetInnerHTML={{ 
+              <p className="insight-text" style={{ textAlign: 'left' }} dangerouslySetInnerHTML={{ 
                 __html: insights.category_leader
                   .replace(/'([^']+)' category/g, (_match, category) => `<strong class="highlight-blue">${formatCategory(category)} category</strong>`)
                   .replace(/\d+ new releases?/g, (match) => `<strong class="highlight-blue">${match}</strong>`)
                   .replace(/\d+ companies?/g, (match) => `<strong class="highlight-blue">${match}</strong>`)
               }} />
             ) : (
-              <p className="insight-text">
+              <p className="insight-text" style={{ textAlign: 'left' }}>
                 <strong className="highlight-blue">Analytics category</strong> is dominating with 
                 <strong className="highlight-blue"> 28 releases</strong> this month.
               </p>
@@ -415,20 +415,20 @@ const Analysis: React.FC = () => {
             </svg>
           </div>
           <div className="insight-content">
-            <h3 className="insight-title">💨 Velocity Alert</h3>
+            <h3 className="insight-title" style={{ textAlign: 'left' }}>💨 Velocity Alert</h3>
             {isLoading ? (
-              <p className="insight-text">Loading insights...</p>
+              <p className="insight-text" style={{ textAlign: 'left' }}>Loading insights...</p>
             ) : error ? (
-              <p className="insight-text" style={{ color: '#ef4444' }}>Error loading data</p>
+              <p className="insight-text" style={{ color: '#ef4444', textAlign: 'left' }}>Error loading data</p>
             ) : insights ? (
-              <p className="insight-text" dangerouslySetInnerHTML={{ 
+              <p className="insight-text" style={{ textAlign: 'left' }} dangerouslySetInnerHTML={{ 
                 __html: insights.velocity_alert
                   .replace(/\d+ features?/g, (match) => `<strong class="highlight-purple">${match}</strong>`)
                   .replace(/\+?\d+%/g, (match) => `<strong class="highlight-purple">${match}</strong>`)
                   .replace(/Q\d+ \d+/g, (match) => `<strong class="highlight-purple">${match}</strong>`)
               }} />
             ) : (
-              <p className="insight-text">
+              <p className="insight-text" style={{ textAlign: 'left' }}>
                 The market is accelerating—
                 <strong className="highlight-purple"> 120 total releases</strong> this month vs 
                 <strong className="highlight-purple"> 95 last month</strong> 
@@ -451,11 +451,11 @@ const Analysis: React.FC = () => {
             </svg>
           </div>
           <div className="insight-content">
-            <h3 className="insight-title">🎯 Pattern Detected</h3>
+            <h3 className="insight-title" style={{ textAlign: 'left' }}>🎯 Pattern Detected</h3>
             {isLoading ? (
-              <p className="insight-text">Loading patterns...</p>
+              <p className="insight-text" style={{ textAlign: 'left' }}>Loading patterns...</p>
             ) : anomalies && anomalies.length > 0 ? (
-              <p className="insight-text">
+              <p className="insight-text" style={{ textAlign: 'left' }}>
                 {(() => {
                   // Get the most significant anomaly (highest severity or first one)
                   const significantAnomaly = anomalies.find(a => a.severity === 'high') || anomalies[0];
@@ -473,7 +473,7 @@ const Analysis: React.FC = () => {
                 })()}
               </p>
             ) : (
-              <p className="insight-text">
+              <p className="insight-text" style={{ textAlign: 'left' }}>
                 All <strong className="highlight-teal">competitors</strong> are showing consistent release patterns—market is stable with no significant anomalies detected.
               </p>
             )}
