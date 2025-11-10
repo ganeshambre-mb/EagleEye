@@ -237,13 +237,30 @@ const Releases: React.FC = () => {
           backgroundColor: '#ffffff',
           scale: 2,
           logging: false,
+          useCORS: true,
+          allowTaint: false,
         }),
         html2canvas(tableFooterRef.current, {
           backgroundColor: '#ffffff',
           scale: 2,
           logging: false,
+          useCORS: true,
+          allowTaint: false,
         }),
       ]);
+
+      // Validate source canvases
+      if (!tableCanvas || !footerCanvas) {
+        throw new Error('Failed to capture table elements. Please try again.');
+      }
+
+      if (tableCanvas.width === 0 || tableCanvas.height === 0) {
+        throw new Error('Table canvas is empty. Please ensure the table has content.');
+      }
+
+      if (footerCanvas.width === 0 || footerCanvas.height === 0) {
+        throw new Error('Footer canvas is empty. Please ensure the footer has content.');
+      }
 
       // Create a combined canvas
       const combinedWidth = Math.max(tableCanvas.width, footerCanvas.width);
@@ -257,13 +274,45 @@ const Releases: React.FC = () => {
         throw new Error('Failed to get canvas context');
       }
 
+      // Validate canvas dimensions
+      if (combinedCanvas.width === 0 || combinedCanvas.height === 0) {
+        throw new Error('Canvas dimensions are invalid. Cannot generate PDF.');
+      }
+
       // Draw table container at the top
       ctx.drawImage(tableCanvas, 0, 0);
       // Draw footer below the table
       ctx.drawImage(footerCanvas, 0, tableCanvas.height);
 
-      // Convert canvas to image data URL
-      const imageDataUrl = combinedCanvas.toDataURL('image/png', 1.0);
+      // Ensure canvas is fully rendered before converting
+      // Small delay to ensure all drawing operations are complete
+      await new Promise(resolve => setTimeout(resolve, 1000));
+
+      // Convert canvas to image data URL with validation
+      let imageDataUrl: string;
+      try {
+        imageDataUrl = combinedCanvas.toDataURL('image/png', 1.0);
+      } catch (error) {
+        console.error('Error converting canvas to data URL:', error);
+        throw new Error('Failed to convert canvas to image. Please try again.');
+      }
+      
+      // Validate the data URL
+      if (!imageDataUrl || imageDataUrl === 'data:,') {
+        throw new Error('Failed to generate image from canvas. Canvas may be empty.');
+      }
+
+      // Validate PNG signature (should start with data:image/png;base64,)
+      if (!imageDataUrl.startsWith('data:image/png;base64,')) {
+        console.error('Invalid PNG data URL format:', imageDataUrl.substring(0, 50));
+        throw new Error('Invalid image data format. Please try again.');
+      }
+
+      // Extract base64 data and validate it's not empty
+      const base64Data = imageDataUrl.split(',')[1];
+      if (!base64Data || base64Data.length === 0) {
+        throw new Error('Image data is empty. Cannot generate PDF.');
+      }
       
       // Create PDF from canvas image
       const pdf = new jsPDF({
@@ -273,14 +322,19 @@ const Releases: React.FC = () => {
       });
 
       // Add image to PDF (scaled to fit)
-      pdf.addImage(
-        imageDataUrl,
-        'PNG',
-        0,
-        0,
-        combinedCanvas.width,
-        combinedCanvas.height
-      );
+      try {
+        pdf.addImage(
+          imageDataUrl,
+          'PNG',
+          0,
+          0,
+          combinedCanvas.width,
+          combinedCanvas.height
+        );
+      } catch (error) {
+        console.error('Error adding image to PDF:', error);
+        throw new Error('Failed to add image to PDF. The image data may be corrupted.');
+      }
 
       // Get PDF as arraybuffer (more reliable across jsPDF versions)
       const pdfArrayBuffer = pdf.output('arraybuffer');

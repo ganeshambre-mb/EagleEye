@@ -381,7 +381,7 @@ export function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
                   Back
                 </Button>
                 <Button 
-                  onClick={() => setStep(3)}
+                  onClick={() => setStep(2)}
                   className="next-button"
                 >
                   Next
@@ -447,12 +447,12 @@ export function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
               </div>
 
               <div className="step-actions">
-                <Button variant="outline" onClick={() => setStep(2)}>
+                <Button variant="outline" onClick={() => setStep(1)}>
                   <ArrowLeft className="button-icon-left" />
                   Back
                 </Button>
                 <Button 
-                  onClick={() => setStep(4)}
+                  onClick={() => setStep(3)}
                   className="next-button"
                 >
                   Next
@@ -521,7 +521,7 @@ export function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
               </div>
 
               <div className="step-actions">
-                <Button variant="outline" onClick={() => setStep(3)}>
+                <Button variant="outline" onClick={() => setStep(2)}>
                   <ArrowLeft className="button-icon-left" />
                   Back
                 </Button>
