@@ -483,7 +483,7 @@ const Summary = forwardRef<SummaryRef, SummaryProps>(({ insights, isLoading, err
 
       {/* Release Breakdown by Competitor */}
       <div className="release-breakdown-section">
-        <h3 className="breakdown-title" style={{ textAlign: 'left' }}>Release Breakdown by Competitor</h3>
+        <h3 className="breakdown-title" style={{ textAlign: 'left' }}>Release Breakdown</h3>
 
         {weeklyReleasesLoading ? (
           <p style={{ textAlign: 'center', padding: '20px', color: '#6b7280' }}>Loading release breakdown...</p>
