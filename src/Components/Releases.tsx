@@ -40,15 +40,6 @@ const Releases: React.FC = () => {
   const [syncMessage, setSyncMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
-  
-  // Category options for dropdown
-  const categoryOptions = [
-    'Analytics',
-    'Appointments',
-    'Marketing Suite',
-    'Payments',
-    'Mobile'
-  ];
 
   // State for releases data
   const [releases, setReleases] = useState<Release[]>([]);
@@ -114,7 +105,7 @@ const Releases: React.FC = () => {
       setLoadError(null);
       
       try {
-        const response = await fetch('http://localhost:8000/features');
+        const response = await fetch('http://localhost:8000/features?skip=0&limit=1000');
         
         if (!response.ok) {
           throw new Error(`Failed to fetch: ${response.status} ${response.statusText}`);
@@ -163,14 +154,6 @@ const Releases: React.FC = () => {
 
     fetchReleases();
   }, []);
-
-  const handleCategoryChange = (releaseId: number, newCategory: string) => {
-    setReleases(releases.map(release => 
-      release.id === releaseId 
-        ? { ...release, category: newCategory }
-        : release
-    ));
-  };
 
   const handleConnectNotion = async () => {
     if (!isConnected) {
@@ -631,19 +614,7 @@ const Releases: React.FC = () => {
                 </td>
                 <td className="feature-cell">{release.feature}</td>
                 <td className="summary-cell">{release.summary}</td>
-                <td>
-                  <select 
-                    className="category-dropdown"
-                    value={release.category}
-                    onChange={(e) => handleCategoryChange(release.id, e.target.value)}
-                  >
-                    {categoryOptions.map((category) => (
-                      <option key={category} value={category}>
-                        {category}
-                      </option>
-                    ))}
-                  </select>
-                </td>
+                <td className="category-cell">{release.category}</td>
                 <td className="date-cell">{release.date}</td>
               </tr>
             ))}
