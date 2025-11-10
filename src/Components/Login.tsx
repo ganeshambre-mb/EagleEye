@@ -14,7 +14,7 @@ const Login: React.FC = () => {
     console.log('Login attempted with:', { email, password, rememberMe });
     
     // After successful login, redirect to Onboarding page
-    navigate('/onboarding');
+    navigate('/connect-notion');
   };
 
   return (

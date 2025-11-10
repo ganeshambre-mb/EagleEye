@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Radio, Plus, X, ArrowRight, ArrowLeft, CheckCircle2, Tag, Slack } from 'lucide-react';
+import { Radio, Plus, X, ArrowRight, ArrowLeft, CheckCircle2, Tag } from 'lucide-react';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
@@ -40,14 +40,13 @@ interface CategoryAPIResponse {
 export function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
   const [step, setStep] = useState(1);
   const [companyName, setCompanyName] = useState('Mindbody Inc');
-  const [slackConnected, setSlackConnected] = useState(false);
   const [competitors, setCompetitors] = useState<Competitor[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [selectedCompanyId, setSelectedCompanyId] = useState<string | null>(null);
 
-  const totalSteps = 4;
+  const totalSteps = 3;
   const progress = (step / totalSteps) * 100;
 
   // Fetch companies and categories on mount
@@ -229,7 +228,7 @@ export function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
 
       <div className="onboarding-container">
         <AnimatePresence mode="wait">
-          {/* Step 1: Connect Slack */}
+          {/* Step 1: Connect Slack
           {step === 1 && (
             <motion.div
               key="step1"
@@ -293,10 +292,10 @@ export function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
                 </Button>
               </div>
             </motion.div>
-          )}
+          )} */}
 
           {/* Step 2: Define Competitors */}
-          {step === 2 && (
+          {step === 1 && (
             <motion.div
               key="step2"
               initial={{ opacity: 0, x: 20 }}
@@ -393,7 +392,7 @@ export function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
           )}
 
           {/* Step 3: Define Categories */}
-          {step === 3 && (
+          {step === 2 && (
             <motion.div
               key="step3"
               initial={{ opacity: 0, x: 20 }}
@@ -464,7 +463,7 @@ export function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
           )}
 
           {/* Step 4: Start Analysis */}
-          {step === 4 && (
+          {step === 3 && (
             <motion.div
               key="step4"
               initial={{ opacity: 0, x: 20 }}
