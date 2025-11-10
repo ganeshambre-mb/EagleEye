@@ -122,16 +122,40 @@ const WeeklySummary: React.FC = () => {
   };
 
 
+  // Get the current week's date range
+  const getCurrentWeekRange = () => {
+    const today = new Date();
+    const dayOfWeek = today.getDay();
+    const startOfWeek = new Date(today);
+    const endOfWeek = new Date(today);
+    
+    // Calculate start of week (Monday)
+    const daysToMonday = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
+    startOfWeek.setDate(today.getDate() + daysToMonday);
+    
+    // Calculate end of week (Sunday)
+    const daysToSunday = dayOfWeek === 0 ? 0 : 7 - dayOfWeek;
+    endOfWeek.setDate(today.getDate() + daysToSunday);
+    
+    // Format dates
+    const formatDate = (date: Date) => {
+      return date.toLocaleDateString('en-US', { 
+        month: 'short', 
+        day: 'numeric', 
+        year: 'numeric' 
+      });
+    };
+    
+    return `Week of ${formatDate(startOfWeek)} - ${formatDate(endOfWeek)}`;
+  };
+
   return (
     <div className="weekly-summary-content">
       <div className="weekly-header">
         <div>
           <h2 className="weekly-title">Weekly Summary</h2>
           <p className="weekly-date">
-            {insights?.weekly_statistics 
-              ? `Week of ${insights.weekly_statistics.current_week.week_start} to ${insights.weekly_statistics.current_week.week_end}`
-              : insights?.monthly_statistics?.current_month?.month || 
-                'Loading...'}
+            {isLoading ? 'Loading...' : getCurrentWeekRange()}
           </p>
         </div>
         <div className="weekly-actions">
