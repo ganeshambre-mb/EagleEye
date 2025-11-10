@@ -13,8 +13,8 @@ const Login: React.FC = () => {
     // Handle login logic here
     console.log('Login attempted with:', { email, password, rememberMe });
     
-    // After successful login, redirect to ConnectToNotion page
-    navigate('/connect-notion');
+    // After successful login, redirect to Onboarding page
+    navigate('/onboarding');
   };
 
   return (

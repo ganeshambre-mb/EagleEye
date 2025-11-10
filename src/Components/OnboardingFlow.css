@@ -1,0 +1,603 @@
+.onboarding-page {
+  min-height: 100vh;
+  background: linear-gradient(to bottom, #ffffff, #f9fafb);
+}
+
+.onboarding-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  gap: 1rem;
+}
+
+.loading-spinner {
+  width: 40px;
+  height: 40px;
+  border: 3px solid #e5e7eb;
+  border-top-color: #14b8a6;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* Header */
+.onboarding-header {
+  border-bottom: 1px solid #e5e7eb;
+  background-color: white;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.onboarding-header-content {
+  max-width: 72rem;
+  margin: 0 auto;
+  padding: 1.25rem 2rem;
+}
+
+.onboarding-header-inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.onboarding-logo {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.onboarding-logo-icon {
+  width: 2.5rem;
+  height: 2.5rem;
+  background-color: #ccfbf1;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.icon-radio {
+  width: 1.5rem;
+  height: 1.5rem;
+  color: #14b8a6;
+}
+
+.onboarding-logo-text {
+  color: #111827;
+  font-weight: 500;
+  font-size: 1rem;
+}
+
+.onboarding-progress-section {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.onboarding-step-text {
+  color: #6b7280;
+  font-size: 0.875rem;
+  white-space: nowrap;
+}
+
+.onboarding-progress-wrapper {
+  width: 8rem;
+}
+
+/* Container */
+.onboarding-container {
+  max-width: 42rem;
+  margin: 0 auto;
+  padding: 2rem 1.5rem 2rem;
+  min-height: calc(100vh - 80px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.onboarding-step {
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
+  width: 100%;
+}
+
+/* Step Header */
+.step-header {
+  text-align: center;
+  padding: 0;
+  margin-bottom: 0.5rem;
+}
+
+.step-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 4rem;
+  height: 4rem;
+  border-radius: 1rem;
+  margin-bottom: 1rem;
+}
+
+.step-icon.purple {
+  background-color: #f3e8ff;
+}
+
+.step-icon.blue {
+  background-color: #dbeafe;
+}
+
+.step-icon.teal {
+  background-color: #ccfbf1;
+}
+
+.step-icon.green {
+  background-color: #d1fae5;
+}
+
+.step-icon .icon {
+  width: 2rem;
+  height: 2rem;
+}
+
+.step-icon.purple .icon {
+  color: #9333ea;
+}
+
+.step-icon.blue .icon {
+  color: #2563eb;
+}
+
+.step-icon.teal .icon {
+  color: #14b8a6;
+}
+
+.step-icon.green .icon {
+  color: #10b981;
+}
+
+.step-title {
+  color: #111827;
+  font-size: 1.875rem;
+  font-weight: 700;
+  margin-bottom: 0.625rem;
+  line-height: 1.2;
+}
+
+.step-description {
+  color: #6b7280;
+  font-size: 0.9375rem;
+  max-width: 32rem;
+  margin: 0 auto;
+  line-height: 1.5;
+}
+
+/* Step Card */
+.step-card {
+  background-color: white;
+  border: 1px solid #e5e7eb;
+  border-radius: 1rem;
+  padding: 2rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+  width: 100%;
+  max-width: 100%;
+}
+
+.step-card-content {
+  display: flex;
+  flex-direction: column;
+  gap: 1.75rem;
+}
+
+/* Slack Connect Section */
+.slack-connect-section {
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.5rem 0;
+}
+
+.slack-connect-button {
+  background-color: #9333ea !important;
+  color: white !important;
+  padding: 1rem 1.75rem !important;
+  height: auto !important;
+  font-size: 0.9375rem;
+  font-weight: 600 !important;
+  border-radius: 0.625rem !important;
+  transition: all 0.2s !important;
+}
+
+.slack-connect-button:hover:not(:disabled) {
+  background-color: #7e22ce !important;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(147, 51, 234, 0.3);
+}
+
+.button-icon {
+  margin-right: 0.5rem;
+  width: 1.25rem;
+  height: 1.25rem;
+}
+
+.button-icon-left {
+  margin-right: 0.5rem;
+  width: 1rem;
+  height: 1rem;
+}
+
+.button-icon-right {
+  margin-left: 0.5rem;
+  width: 1rem;
+  height: 1rem;
+}
+
+.skip-text {
+  color: #6b7280;
+  font-size: 0.875rem;
+  line-height: 1.5;
+}
+
+.slack-connected {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background-color: #faf5ff;
+  border: 1px solid #e9d5ff;
+  border-radius: 0.75rem;
+  padding: 1.25rem;
+}
+
+.slack-info {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.slack-logo {
+  width: 2.75rem;
+  height: 2.75rem;
+  background-color: #9333ea;
+  border-radius: 0.625rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.icon-white {
+  width: 1.5rem;
+  height: 1.5rem;
+  color: white;
+}
+
+.slack-details {
+  text-align: left;
+}
+
+.workspace-name {
+  color: #111827;
+  font-weight: 600;
+  margin-bottom: 0.25rem;
+  font-size: 0.9375rem;
+}
+
+.channel-name {
+  color: #6b7280;
+  font-size: 0.875rem;
+}
+
+.check-icon {
+  width: 1.5rem;
+  height: 1.5rem;
+  color: #9333ea;
+  flex-shrink: 0;
+}
+
+/* Company Section */
+.company-section {
+  padding-bottom: 1.5rem;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.section-label {
+  color: #111827 !important;
+  font-size: 0.9375rem !important;
+  font-weight: 600 !important;
+  margin-bottom: 0.75rem;
+  display: block;
+}
+
+/* Competitors Section */
+.competitors-section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.875rem;
+}
+
+.competitors-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.competitor-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 0.75rem;
+}
+
+.competitor-inputs {
+  flex: 1;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.875rem;
+}
+
+.input-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.input-label {
+  color: #6b7280 !important;
+  font-size: 0.8125rem !important;
+  font-weight: 500 !important;
+}
+
+.remove-button {
+  flex-shrink: 0;
+  border-color: #e5e7eb !important;
+}
+
+.remove-button:hover:not(:disabled) {
+  background-color: #fee2e2 !important;
+  border-color: #fca5a5 !important;
+  color: #dc2626 !important;
+}
+
+.add-button {
+  width: 100%;
+  border-style: dashed !important;
+  border-width: 2px !important;
+  justify-content: center;
+  color: #6b7280 !important;
+  font-weight: 600 !important;
+}
+
+.add-button:hover:not(:disabled) {
+  background-color: #f9fafb !important;
+  border-color: #9ca3af !important;
+  color: #374151 !important;
+}
+
+.icon-sm {
+  width: 1rem;
+  height: 1rem;
+}
+
+/* Categories Section */
+.categories-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.category-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 0.75rem;
+}
+
+.category-input-wrapper {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+/* Summary Content */
+.summary-content {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.summary-section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.875rem;
+}
+
+.summary-heading {
+  color: #111827;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.company-badge {
+  background-color: #dbeafe;
+  border: 1px solid #93c5fd;
+  border-radius: 0.75rem;
+  padding: 1rem;
+  text-align: center;
+}
+
+.company-name {
+  color: #1e3a8a;
+  font-weight: 600;
+  font-size: 0.9375rem;
+  margin: 0;
+}
+
+.competitors-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.competitor-summary-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background-color: #f9fafb;
+  border: 1px solid #f3f4f6;
+  border-radius: 0.625rem;
+  padding: 0.875rem 1rem;
+  gap: 1rem;
+}
+
+.competitor-summary-name {
+  color: #111827;
+  font-weight: 600;
+  font-size: 0.9375rem;
+  flex-shrink: 0;
+}
+
+.competitor-summary-url {
+  color: #6b7280;
+  font-size: 0.8125rem;
+  margin-left: auto;
+  max-width: 18rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: right;
+}
+
+.categories-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.category-badge {
+  background-color: #ccfbf1;
+  color: #115e59;
+  padding: 0.5rem 1rem;
+  border-radius: 0.5rem;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  border: 1px solid #99f6e4;
+}
+
+/* Step Actions */
+.step-actions {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.875rem;
+  margin-top: 0;
+  width: 100%;
+  max-width: 100%;
+}
+
+.step-actions .btn {
+  padding: 0.6875rem 1.25rem;
+  font-weight: 600;
+  font-size: 0.875rem;
+  border-radius: 0.5rem;
+  transition: all 0.2s;
+  flex-shrink: 0;
+}
+
+.step-actions .btn-outline {
+  background-color: white;
+  border: 1px solid #d1d5db;
+  color: #374151;
+}
+
+.step-actions .btn-outline:hover:not(:disabled) {
+  background-color: #f9fafb;
+  border-color: #9ca3af;
+}
+
+.next-button {
+  background-color: #111827 !important;
+  color: white !important;
+}
+
+.next-button:hover:not(:disabled) {
+  background-color: #1f2937 !important;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.start-button {
+  background-color: #14b8a6 !important;
+  color: white !important;
+}
+
+.start-button:hover:not(:disabled) {
+  background-color: #0d9488 !important;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(20, 184, 166, 0.3);
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .onboarding-container {
+    padding: 1.5rem 1rem;
+    min-height: calc(100vh - 70px);
+  }
+
+  .step-card {
+    padding: 1.5rem;
+  }
+
+  .step-title {
+    font-size: 1.5rem;
+  }
+
+  .step-description {
+    font-size: 0.875rem;
+  }
+
+  .competitor-inputs {
+    grid-template-columns: 1fr;
+  }
+
+  .competitor-summary-url {
+    display: none;
+  }
+
+  .step-actions {
+    gap: 0.625rem;
+  }
+
+  .step-actions .btn {
+    padding: 0.625rem 1rem;
+    font-size: 0.8125rem;
+  }
+
+  .onboarding-header-content {
+    padding: 1rem 1.5rem;
+  }
+
+  .onboarding-progress-wrapper {
+    width: 6rem;
+  }
+
+  .step-icon {
+    width: 3.5rem;
+    height: 3.5rem;
+    margin-bottom: 0.875rem;
+  }
+
+  .step-icon .icon {
+    width: 1.75rem;
+    height: 1.75rem;
+  }
+}
+
