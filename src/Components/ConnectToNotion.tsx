@@ -41,7 +41,7 @@ const ConnectToNotion: React.FC = () => {
         
         // Auto-navigate to dashboard after 2 seconds
         setTimeout(() => {
-          navigate('/dashboard');
+          navigate('/onboarding');
         }, 2000);
       } else {
         // Error from backend
@@ -93,7 +93,7 @@ const ConnectToNotion: React.FC = () => {
       setConnectionStatus('success');
       // Auto-navigate to dashboard after 2 seconds
       setTimeout(() => {
-        navigate('/dashboard');
+        navigate('/onboarding');
       }, 2000);
     } else if (error) {
       setConnectionStatus('error');
@@ -119,13 +119,13 @@ const ConnectToNotion: React.FC = () => {
   const handleSkip = () => {
     // Navigate to dashboard
     console.log('Skipped Notion connection');
-    navigate('/dashboard');
+    navigate('/onboarding');
   };
 
   const handleNext = () => {
     // Navigate to dashboard
     console.log('Moving to next step');
-    navigate('/dashboard');
+    navigate('/onboarding');
   };
 
   return (
