@@ -39,21 +39,7 @@ const LandingPage: React.FC = () => {
           visualizes trends—so you can focus on building, not monitoring.
         </p>
 
-        <div className="radar-visualization">
-          <div className="radar-circle radar-circle-1"></div>
-          <div className="radar-circle radar-circle-2"></div>
-          <div className="radar-circle radar-circle-3"></div>
-          <div className="radar-circle radar-circle-4"></div>
-          <div className="radar-center"></div>
-          <div className="radar-dot radar-dot-1"></div>
-          <div className="radar-dot radar-dot-2"></div>
-          <div className="radar-dot radar-dot-3"></div>
-          <div className="radar-dot radar-dot-4"></div>
-          <div className="radar-dot radar-dot-5"></div>
-          <div className="radar-dot radar-dot-6"></div>
-          <div className="radar-dot radar-dot-7"></div>
-          <div className="radar-dot radar-dot-8"></div>
-        </div>
+        <img src="onboarding_image.jpg" alt="Radar" className="radar-image" height={400} width={700} />
 
         <button className="cta-button" onClick={handleStartAnalysis}>
           Start Analysis
@@ -86,7 +72,8 @@ const LandingPage: React.FC = () => {
 
           <div className="step-card">
             <div className="step-number step-number-2">2</div>
-            <h3 className="step-title">AI Analyzes Everything</h3>
+            <h3 className="step-title">AI Analyzes</h3>
+            <h3 className="step-title">You Control</h3>
             <p className="step-description">
               Our AI categorizes releases, detects trends,<br />
               and surfaces insights automatically.

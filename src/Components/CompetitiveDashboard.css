@@ -305,6 +305,7 @@
   font-size: 0.875rem;
   color: #1a1a1a;
   vertical-align: top;
+  text-align: left;
 }
 
 /* Competitor Cell */
@@ -352,6 +353,7 @@
   font-weight: 500;
   color: #1e40af;
   max-width: 200px;
+  text-align: left;
 }
 
 /* Summary Cell */
@@ -359,6 +361,7 @@
   color: #374151;
   line-height: 1.5;
   max-width: 400px;
+  text-align: left;
 }
 
 /* Category Badges */
@@ -448,6 +451,7 @@
   color: #6b7280;
   white-space: nowrap;
   font-size: 0.813rem;
+  text-align: left;
 }
 
 /* Table Footer */
