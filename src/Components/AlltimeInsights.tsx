@@ -4,7 +4,8 @@ export type AlltimeInsightsRef = {
   downloadPDF: () => Promise<void>;
 }
 
-const AlltimeInsights = forwardRef<AlltimeInsightsRef>((ref) => {
+// eslint-disable-next-line @typescript-eslint/no-empty-object-type
+const AlltimeInsights = forwardRef<AlltimeInsightsRef, {}>((_props, ref) => {
   const alltimeContentRef = useRef<HTMLDivElement>(null);
 
   const handleDownloadPDF = async () => {
