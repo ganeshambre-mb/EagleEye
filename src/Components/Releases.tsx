@@ -28,30 +28,19 @@ const Releases: React.FC = () => {
   const [isSending, setIsSending] = useState(false);
   const [showEmailModal, setShowEmailModal] = useState(false);
   const [emailRecipients, setEmailRecipients] = useState('');
-  const [isScheduled, setIsScheduled] = useState(false);
-  const [scheduleTime, setScheduleTime] = useState('');
-  const [scheduleFrequency, setScheduleFrequency] = useState<'daily' | 'weekly' | 'monthly' | ''>('');
-  const [scheduleName, setScheduleName] = useState('');
-  const [scheduleDayOfWeek, setScheduleDayOfWeek] = useState<number>(1); // 0 = Sunday, 1 = Monday, etc.
-  const [scheduleDayOfMonth, setScheduleDayOfMonth] = useState<number>(1); // 1-31
   const tableContainerRef = useRef<HTMLDivElement>(null);
   const tableFooterRef = useRef<HTMLDivElement>(null);
   const [isSyncing, setIsSyncing] = useState(false);
   const [syncMessage, setSyncMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
-  
-  // Category options for dropdown
-  const categoryOptions = [
-    'Analytics',
-    'Appointments',
-    'Marketing Suite',
-    'Payments',
-    'Mobile'
-  ];
 
   // State for releases data
   const [releases, setReleases] = useState<Release[]>([]);
+  
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(10);
 
   // Helper function to generate competitor color based on name
   const getCompetitorColor = (competitor: string): string => {
@@ -107,6 +96,38 @@ const Releases: React.FC = () => {
     return diffDays <= 7;
   };
 
+  // Filter releases based on search query
+  const filteredReleases = React.useMemo(() => {
+    if (!searchQuery.trim()) {
+      return releases;
+    }
+    
+    const query = searchQuery.toLowerCase().trim();
+    return releases.filter(release => 
+      release.competitor.toLowerCase().includes(query) ||
+      release.feature.toLowerCase().includes(query) ||
+      release.summary.toLowerCase().includes(query) ||
+      release.category.toLowerCase().includes(query) ||
+      release.date.toLowerCase().includes(query)
+    );
+  }, [releases, searchQuery]);
+
+  // Calculate pagination
+  const totalPages = Math.ceil(filteredReleases.length / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const endIndex = startIndex + itemsPerPage;
+  const paginatedReleases = filteredReleases.slice(startIndex, endIndex);
+
+  // Reset to page 1 when search query changes
+  React.useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery]);
+
+  // Reset to page 1 when items per page changes
+  React.useEffect(() => {
+    setCurrentPage(1);
+  }, [itemsPerPage]);
+
   // Fetch releases data from API
   useEffect(() => {
     const fetchReleases = async () => {
@@ -114,7 +135,7 @@ const Releases: React.FC = () => {
       setLoadError(null);
       
       try {
-        const response = await fetch('http://localhost:8000/features');
+        const response = await fetch('http://localhost:8000/features?skip=0&limit=1000');
         
         if (!response.ok) {
           throw new Error(`Failed to fetch: ${response.status} ${response.statusText}`);
@@ -163,14 +184,6 @@ const Releases: React.FC = () => {
 
     fetchReleases();
   }, []);
-
-  const handleCategoryChange = (releaseId: number, newCategory: string) => {
-    setReleases(releases.map(release => 
-      release.id === releaseId 
-        ? { ...release, category: newCategory }
-        : release
-    ));
-  };
 
   const handleConnectNotion = async () => {
     if (!isConnected) {
@@ -230,12 +243,6 @@ const Releases: React.FC = () => {
 
   const handleCloseModal = () => {
     setShowEmailModal(false);
-    setIsScheduled(false);
-    setScheduleTime('');
-    setScheduleFrequency('');
-    setScheduleName('');
-    setScheduleDayOfWeek(1);
-    setScheduleDayOfMonth(1);
     setEmailRecipients('');
   };
 
@@ -254,13 +261,30 @@ const Releases: React.FC = () => {
           backgroundColor: '#ffffff',
           scale: 2,
           logging: false,
+          useCORS: true,
+          allowTaint: false,
         }),
         html2canvas(tableFooterRef.current, {
           backgroundColor: '#ffffff',
           scale: 2,
           logging: false,
+          useCORS: true,
+          allowTaint: false,
         }),
       ]);
+
+      // Validate source canvases
+      if (!tableCanvas || !footerCanvas) {
+        throw new Error('Failed to capture table elements. Please try again.');
+      }
+
+      if (tableCanvas.width === 0 || tableCanvas.height === 0) {
+        throw new Error('Table canvas is empty. Please ensure the table has content.');
+      }
+
+      if (footerCanvas.width === 0 || footerCanvas.height === 0) {
+        throw new Error('Footer canvas is empty. Please ensure the footer has content.');
+      }
 
       // Create a combined canvas
       const combinedWidth = Math.max(tableCanvas.width, footerCanvas.width);
@@ -274,13 +298,96 @@ const Releases: React.FC = () => {
         throw new Error('Failed to get canvas context');
       }
 
-      // Draw table container at the top
-      ctx.drawImage(tableCanvas, 0, 0);
-      // Draw footer below the table
-      ctx.drawImage(footerCanvas, 0, tableCanvas.height);
+      // Validate canvas dimensions
+      if (combinedCanvas.width === 0 || combinedCanvas.height === 0) {
+        throw new Error('Canvas dimensions are invalid. Cannot generate PDF.');
+      }
 
-      // Convert canvas to image data URL
-      const imageDataUrl = combinedCanvas.toDataURL('image/png', 1.0);
+      // Convert source canvases to data URLs first to avoid tainting issues
+      let tableDataUrl: string;
+      let footerDataUrl: string;
+      
+      try {
+        tableDataUrl = tableCanvas.toDataURL('image/png', 1.0);
+        footerDataUrl = footerCanvas.toDataURL('image/png', 1.0);
+        
+        console.log('Table canvas data URL length:', tableDataUrl.length);
+        console.log('Footer canvas data URL length:', footerDataUrl.length);
+        
+        // Validate source data URLs
+        if (!tableDataUrl || tableDataUrl === 'data:,' || !tableDataUrl.startsWith('data:image/png;base64,')) {
+          console.error('Invalid table canvas data URL:', tableDataUrl.substring(0, 100));
+          throw new Error('Failed to capture table image. Please try again.');
+        }
+        
+        if (!footerDataUrl || footerDataUrl === 'data:,' || !footerDataUrl.startsWith('data:image/png;base64,')) {
+          console.error('Invalid footer canvas data URL:', footerDataUrl.substring(0, 100));
+          throw new Error('Failed to capture footer image. Please try again.');
+        }
+      } catch (error) {
+        console.error('Error converting source canvases to data URLs:', error);
+        throw new Error('Failed to convert canvases to images. This may be due to CORS restrictions or empty content.');
+      }
+
+      // Load images from data URLs and draw them onto combined canvas
+      const loadImage = (dataUrl: string): Promise<HTMLImageElement> => {
+        return new Promise((resolve, reject) => {
+          const img = new Image();
+          img.onload = () => resolve(img);
+          img.onerror = () => reject(new Error('Failed to load image from data URL'));
+          img.src = dataUrl;
+        });
+      };
+
+      try {
+        const [tableImage, footerImage] = await Promise.all([
+          loadImage(tableDataUrl),
+          loadImage(footerDataUrl)
+        ]);
+
+        // Draw table container at the top
+        ctx.drawImage(tableImage, 0, 0);
+        // Draw footer below the table
+        ctx.drawImage(footerImage, 0, tableCanvas.height);
+      } catch (error) {
+        console.error('Error loading images:', error);
+        throw new Error('Failed to load images for PDF generation. Please try again.');
+      }
+
+      // Ensure canvas is fully rendered before converting
+      await new Promise(resolve => setTimeout(resolve, 3000));
+
+      // Convert combined canvas to image data URL with validation
+      let imageDataUrl: string;
+      try {
+        imageDataUrl = combinedCanvas.toDataURL('image/png', 1.0);
+        console.log('Combined canvas data URL length:', imageDataUrl.length);
+      } catch (error) {
+        console.error('Error converting combined canvas to data URL:', error);
+        // If toDataURL fails, try using the source canvases directly
+        console.log('Attempting fallback: using source canvases directly');
+        throw new Error('Failed to convert canvas to image. The canvas may be tainted due to CORS restrictions.');
+      }
+      
+      // Validate the data URL
+      if (!imageDataUrl || imageDataUrl === 'data:,') {
+        console.error('Empty data URL detected. Canvas dimensions:', combinedCanvas.width, 'x', combinedCanvas.height);
+        console.error('Table canvas dimensions:', tableCanvas.width, 'x', tableCanvas.height);
+        console.error('Footer canvas dimensions:', footerCanvas.width, 'x', footerCanvas.height);
+        throw new Error('Failed to generate image from canvas. Canvas may be empty or tainted.');
+      }
+
+      // Validate PNG signature (should start with data:image/png;base64,)
+      if (!imageDataUrl.startsWith('data:image/png;base64,')) {
+        console.error('Invalid PNG data URL format:', imageDataUrl.substring(0, 50));
+        throw new Error('Invalid image data format. Please try again.');
+      }
+
+      // Extract base64 data and validate it's not empty
+      const base64Data = imageDataUrl.split(',')[1];
+      if (!base64Data || base64Data.length === 0) {
+        throw new Error('Image data is empty. Cannot generate PDF.');
+      }
       
       // Create PDF from canvas image
       const pdf = new jsPDF({
@@ -290,14 +397,19 @@ const Releases: React.FC = () => {
       });
 
       // Add image to PDF (scaled to fit)
-      pdf.addImage(
-        imageDataUrl,
-        'PNG',
-        0,
-        0,
-        combinedCanvas.width,
-        combinedCanvas.height
-      );
+      try {
+        pdf.addImage(
+          imageDataUrl,
+          'PNG',
+          0,
+          0,
+          combinedCanvas.width,
+          combinedCanvas.height
+        );
+      } catch (error) {
+        console.error('Error adding image to PDF:', error);
+        throw new Error('Failed to add image to PDF. The image data may be corrupted.');
+      }
 
       // Get PDF as arraybuffer (more reliable across jsPDF versions)
       const pdfArrayBuffer = pdf.output('arraybuffer');
@@ -324,57 +436,12 @@ const Releases: React.FC = () => {
         byte_array_base64: base64String,
       };
 
-      // Add scheduling information if scheduled
-      if (isScheduled && scheduleFrequency) {
-        payload.schedule_frequency = scheduleFrequency;
-        if (scheduleName.trim()) {
-          payload.schedule_name = scheduleName.trim();
-        }
-        
-        // Include time for all frequencies
-        if (scheduleTime) {
-          payload.schedule_time = scheduleTime;
-        }
-        
-        // For weekly, include day of week
-        if (scheduleFrequency === 'weekly') {
-          payload.schedule_day_of_week = scheduleDayOfWeek;
-        }
-        
-        // For monthly, include day of month
-        if (scheduleFrequency === 'monthly') {
-          payload.schedule_day_of_month = scheduleDayOfMonth;
-        }
-      }
-
       // Send to API using DataService
       const result = await DataService.sendEmail(payload);
       
       if (result.success) {
-        if (isScheduled) {
-          const frequencyText = `${scheduleFrequency}ly`;
-          const nameText = scheduleName.trim() ? ` "${scheduleName.trim()}"` : '';
-          let scheduleDetails = '';
-          if (scheduleTime) {
-            scheduleDetails = ` at ${scheduleTime}`;
-          }
-          if (scheduleFrequency === 'weekly') {
-            const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-            scheduleDetails += ` on ${days[scheduleDayOfWeek]}`;
-          } else if (scheduleFrequency === 'monthly') {
-            scheduleDetails += ` on day ${scheduleDayOfMonth}`;
-          }
-          toast.success(`Email schedule${nameText} created successfully (${frequencyText}${scheduleDetails}) to: ${result.sent_to.join(', ')}`);
-        } else {
-          toast.success(`Email sent successfully to: ${result.sent_to.join(', ')}`);
-        }
+        toast.success(`Email sent successfully to: ${result.sent_to.join(', ')}`);
         setShowEmailModal(false);
-        setIsScheduled(false);
-        setScheduleTime('');
-        setScheduleFrequency('');
-        setScheduleName('');
-        setScheduleDayOfWeek(1);
-        setScheduleDayOfMonth(1);
         setEmailRecipients('');
       } else {
         toast.error(`Failed to send email: ${result.message}`);
@@ -401,39 +468,6 @@ const Releases: React.FC = () => {
     if (invalidEmails.length > 0) {
       toast.error(`Invalid email addresses: ${invalidEmails.join(', ')}`);
       return;
-    }
-
-    // Validate scheduling if enabled
-    if (isScheduled) {
-      if (!scheduleFrequency) {
-        toast.warning('Please select a frequency for the scheduled email');
-        return;
-      }
-      
-      if (!scheduleName.trim()) {
-        toast.warning('Please enter a name for the scheduled email');
-        return;
-      }
-      
-      // Validate time for all frequencies
-      if (!scheduleTime) {
-        toast.warning('Please select a time for the schedule');
-        return;
-      }
-      
-      // Validate day of week for weekly frequency
-      if (scheduleFrequency === 'weekly' && scheduleDayOfWeek === undefined) {
-        toast.warning('Please select a day of the week');
-        return;
-      }
-      
-      // Validate day of month for monthly frequency
-      if (scheduleFrequency === 'monthly') {
-        if (!scheduleDayOfMonth || scheduleDayOfMonth < 1 || scheduleDayOfMonth > 31) {
-          toast.warning('Please select a valid day of the month (1-31)');
-          return;
-        }
-      }
     }
 
     await handleSendEmail(emails.join(','));
@@ -611,49 +645,161 @@ const Releases: React.FC = () => {
             </tr>
           </thead>
           <tbody>
-            {releases.map((release) => (
-              <tr key={release.id}>
-                <td>
-                  <div className="competitor-cell">
-                    <div 
-                      className="competitor-avatar" 
-                      style={{ backgroundColor: release.competitorColor }}
-                    >
-                      {release.competitorInitial}
+            {paginatedReleases.length > 0 ? (
+              paginatedReleases.map((release) => (
+                <tr key={release.id}>
+                  <td>
+                    <div className="competitor-cell">
+                      <div 
+                        className="competitor-avatar" 
+                        style={{ backgroundColor: release.competitorColor }}
+                      >
+                        {release.competitorInitial}
+                      </div>
+                      <div className="competitor-info">
+                        <span className="competitor-name">{release.competitor}</span>
+                        {isNewRelease(release.date) && (
+                          <span className="new-badge">New</span>
+                        )}
+                      </div>
                     </div>
-                    <div className="competitor-info">
-                      <span className="competitor-name">{release.competitor}</span>
-                      {isNewRelease(release.date) && (
-                        <span className="new-badge">New</span>
-                      )}
-                    </div>
-                  </div>
+                  </td>
+                  <td className="feature-cell">{release.feature}</td>
+                  <td className="summary-cell">{release.summary}</td>
+                  <td className="category-cell">{release.category}</td>
+                  <td className="date-cell">{release.date}</td>
+                </tr>
+              ))
+            ) : (
+              <tr>
+                <td colSpan={5} style={{ textAlign: 'center', padding: '40px' }}>
+                  <p style={{ color: '#6b7280', fontSize: '0.875rem' }}>
+                    {searchQuery ? 'No releases found matching your search.' : 'No releases available.'}
+                  </p>
                 </td>
-                <td className="feature-cell">{release.feature}</td>
-                <td className="summary-cell">{release.summary}</td>
-                <td>
-                  <select 
-                    className="category-dropdown"
-                    value={release.category}
-                    onChange={(e) => handleCategoryChange(release.id, e.target.value)}
-                  >
-                    {categoryOptions.map((category) => (
-                      <option key={category} value={category}>
-                        {category}
-                      </option>
-                    ))}
-                  </select>
-                </td>
-                <td className="date-cell">{release.date}</td>
               </tr>
-            ))}
+            )}
           </tbody>
         </table>
       </div>
 
-      {/* Footer */}
+      {/* Footer with Pagination */}
       <div className="table-footer" ref={tableFooterRef}>
-        <p className="showing-text">Showing {releases.length} of {releases.length} releases</p>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%', flexWrap: 'wrap', gap: '16px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <p className="showing-text">
+              Showing {filteredReleases.length > 0 ? startIndex + 1 : 0} to {Math.min(endIndex, filteredReleases.length)} of {filteredReleases.length} releases
+            </p>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <label htmlFor="items-per-page" style={{ fontSize: '0.875rem', color: '#6b7280' }}>
+                Items per page:
+              </label>
+              <select
+                id="items-per-page"
+                value={itemsPerPage}
+                onChange={(e) => setItemsPerPage(Number(e.target.value))}
+                style={{
+                  padding: '6px 12px',
+                  border: '1px solid #e5e7eb',
+                  borderRadius: '6px',
+                  fontSize: '0.875rem',
+                  backgroundColor: '#ffffff',
+                  color: '#1a1a1a',
+                  cursor: 'pointer'
+                }}
+              >
+                <option value={10}>10</option>
+                <option value={25}>25</option>
+                <option value={50}>50</option>
+                <option value={100}>100</option>
+              </select>
+            </div>
+          </div>
+
+          {/* Pagination Controls */}
+          {totalPages > 1 && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <button
+                onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                disabled={currentPage === 1}
+                style={{
+                  padding: '6px 12px',
+                  border: '1px solid #e5e7eb',
+                  borderRadius: '6px',
+                  fontSize: '0.875rem',
+                  backgroundColor: currentPage === 1 ? '#f9fafb' : '#ffffff',
+                  color: currentPage === 1 ? '#9ca3af' : '#1a1a1a',
+                  cursor: currentPage === 1 ? 'not-allowed' : 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '4px'
+                }}
+              >
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                  <path d="M10 12L6 8L10 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
+                Previous
+              </button>
+
+              {/* Page Numbers */}
+              <div style={{ display: 'flex', gap: '4px' }}>
+                {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => {
+                  // Show first page, last page, current page, and pages around current
+                  if (
+                    page === 1 ||
+                    page === totalPages ||
+                    (page >= currentPage - 1 && page <= currentPage + 1)
+                  ) {
+                    return (
+                      <button
+                        key={page}
+                        onClick={() => setCurrentPage(page)}
+                        style={{
+                          minWidth: '36px',
+                          padding: '6px 8px',
+                          border: '1px solid #e5e7eb',
+                          borderRadius: '6px',
+                          fontSize: '0.875rem',
+                          backgroundColor: currentPage === page ? '#1a1a1a' : '#ffffff',
+                          color: currentPage === page ? '#ffffff' : '#1a1a1a',
+                          cursor: 'pointer',
+                          fontWeight: currentPage === page ? '600' : '400'
+                        }}
+                      >
+                        {page}
+                      </button>
+                    );
+                  } else if (page === currentPage - 2 || page === currentPage + 2) {
+                    return <span key={page} style={{ padding: '6px 4px', color: '#6b7280' }}>...</span>;
+                  }
+                  return null;
+                })}
+              </div>
+
+              <button
+                onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                disabled={currentPage === totalPages}
+                style={{
+                  padding: '6px 12px',
+                  border: '1px solid #e5e7eb',
+                  borderRadius: '6px',
+                  fontSize: '0.875rem',
+                  backgroundColor: currentPage === totalPages ? '#f9fafb' : '#ffffff',
+                  color: currentPage === totalPages ? '#9ca3af' : '#1a1a1a',
+                  cursor: currentPage === totalPages ? 'not-allowed' : 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '4px'
+                }}
+              >
+                Next
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                  <path d="M6 4L10 8L6 12" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
+              </button>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Email Modal */}
@@ -683,112 +829,6 @@ const Releases: React.FC = () => {
                   disabled={isSending}
                 />
               </div>
-              
-              <div className="email-modal-schedule-section">
-                <label className="email-modal-checkbox-label">
-                  <input
-                    type="checkbox"
-                    className="email-modal-checkbox"
-                    checked={isScheduled}
-                    onChange={(e) => setIsScheduled(e.target.checked)}
-                    disabled={isSending}
-                  />
-                  <span>Schedule Email</span>
-                </label>
-                
-                {isScheduled && (
-                  <div className="email-modal-schedule-fields">
-                    <div className="email-modal-field">
-                      <label htmlFor="schedule-name" className="email-modal-label">
-                        Schedule Name:
-                      </label>
-                      <input
-                        id="schedule-name"
-                        type="text"
-                        className="email-modal-input"
-                        placeholder="e.g., Weekly Report"
-                        value={scheduleName}
-                        onChange={(e) => setScheduleName(e.target.value)}
-                        disabled={isSending}
-                      />
-                    </div>
-                    <div className="email-modal-field">
-                      <label htmlFor="schedule-frequency" className="email-modal-label">
-                        Frequency:
-                      </label>
-                      <select
-                        id="schedule-frequency"
-                        className="email-modal-input email-modal-select"
-                        value={scheduleFrequency}
-                        onChange={(e) => setScheduleFrequency(e.target.value as 'daily' | 'weekly' | 'monthly' | '')}
-                        disabled={isSending}
-                      >
-                        <option value="">Select</option>
-                        <option value="daily">Daily</option>
-                        <option value="weekly">Weekly</option>
-                        <option value="monthly">Monthly</option>
-                      </select>
-                    </div>
-                    {scheduleFrequency && (
-                      <div className="email-modal-field">
-                        <label htmlFor="schedule-time" className="email-modal-label">
-                          Time:
-                        </label>
-                        <input
-                          id="schedule-time"
-                          type="time"
-                          className="email-modal-input email-modal-time-input"
-                          value={scheduleTime}
-                          onChange={(e) => setScheduleTime(e.target.value)}
-                          disabled={isSending}
-                        />
-                      </div>
-                    )}
-                    {scheduleFrequency === 'weekly' && (
-                      <div className="email-modal-field">
-                        <label htmlFor="schedule-day-of-week" className="email-modal-label">
-                          Day of Week:
-                        </label>
-                        <select
-                          id="schedule-day-of-week"
-                          className="email-modal-input email-modal-select"
-                          value={scheduleDayOfWeek}
-                          onChange={(e) => setScheduleDayOfWeek(Number(e.target.value))}
-                          disabled={isSending}
-                        >
-                          <option value="0">Sunday</option>
-                          <option value="1">Monday</option>
-                          <option value="2">Tuesday</option>
-                          <option value="3">Wednesday</option>
-                          <option value="4">Thursday</option>
-                          <option value="5">Friday</option>
-                          <option value="6">Saturday</option>
-                        </select>
-                      </div>
-                    )}
-                    {scheduleFrequency === 'monthly' && (
-                      <div className="email-modal-field">
-                        <label htmlFor="schedule-day-of-month" className="email-modal-label">
-                          Day of Month:
-                        </label>
-                        <select
-                          id="schedule-day-of-month"
-                          className="email-modal-input email-modal-select"
-                          value={scheduleDayOfMonth}
-                          onChange={(e) => setScheduleDayOfMonth(Number(e.target.value))}
-                          disabled={isSending}
-                        >
-                          {Array.from({ length: 31 }, (_, i) => i + 1).map((day) => (
-                            <option key={day} value={day}>
-                              {day}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
             </div>
             <div className="email-modal-footer">
               <button
@@ -803,9 +843,7 @@ const Releases: React.FC = () => {
                 onClick={handleSendEmailSubmit}
                 disabled={isSending}
               >
-                {isSending 
-                  ? (isScheduled ? 'Creating Schedule...' : 'Sending...') 
-                  : (isScheduled ? 'Create Schedule' : 'Send')}
+                {isSending ? 'Sending...' : 'Send'}
               </button>
             </div>
           </div>

@@ -253,7 +253,7 @@ app.post("/api/notion/sync-releases", async (req, res) => {
 
     // Create table header and rows as table block
     // Note: Notion tables have a limit of 100 rows per table
-    const maxRowsPerTable = 99; // 1 for header + 99 data rows = 100 total
+    const maxRowsPerTable = 20; // 1 for header + 99 data rows = 100 total
     const releasesToSync = releases.slice(0, maxRowsPerTable);
     
     if (releases.length > maxRowsPerTable) {
