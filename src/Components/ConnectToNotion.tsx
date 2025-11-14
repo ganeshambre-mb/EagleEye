@@ -2,7 +2,7 @@ import React, { useEffect, useState, useCallback } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useNotion } from '../context/NotionContext';
 import './ConnectToNotion.css';
-import Notion_icon from '../Assets/Notion_Icon.png';
+import Notion_icon from '../assets/Notion_Icon.png';
 
 const ConnectToNotion: React.FC = () => {
   const navigate = useNavigate();
