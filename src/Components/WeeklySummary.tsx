@@ -93,7 +93,7 @@ const WeeklySummary: React.FC = () => {
       setError(null);
       
       try {
-        const response = await fetch('http://localhost:8000/insights');
+        const response = await fetch('http://localhost:8000/insights/weekly');
         
         if (!response.ok) {
           throw new Error(`Failed to fetch: ${response.status} ${response.statusText}`);

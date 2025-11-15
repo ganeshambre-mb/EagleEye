@@ -144,7 +144,7 @@ const Summary = forwardRef<SummaryRef, SummaryProps>(({ insights, isLoading, err
       
       try {
         // Fetch recent features and group by company
-        const response = await fetch('http://localhost:8000/features?skip=0&limit=200');
+        const response = await fetch('http://localhost:8000/features');
         
         if (!response.ok) {
           throw new Error(`Failed to fetch: ${response.status} ${response.statusText}`);
