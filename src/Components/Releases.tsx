@@ -130,18 +130,25 @@ const Releases: React.FC = () => {
 
   // Fetch releases data from API
   useEffect(() => {
+    let isMounted = true;
+    const abortController = new AbortController();
+    
     const fetchReleases = async () => {
       setIsLoading(true);
       setLoadError(null);
       
       try {
-        const response = await fetch('http://localhost:8000/features?skip=0&limit=1000');
+        console.log('[Releases] Fetching features...');
+        const response = await fetch('http://localhost:8000/features?skip=0&limit=1000', {
+          signal: abortController.signal
+        });
         
         if (!response.ok) {
           throw new Error(`Failed to fetch: ${response.status} ${response.statusText}`);
         }
         
         const data = await response.json();
+        console.log('[Releases] Features data received:', data.length, 'items');
         
         // Transform API data to match our Release interface
         interface APIFeature {
@@ -172,17 +179,32 @@ const Releases: React.FC = () => {
           date: formatDate(item.release_date)
         }));
         
-        setReleases(transformedReleases);
+        if (isMounted) {
+          setReleases(transformedReleases);
+        }
       } catch (error) {
-        console.error('Error fetching releases:', error);
-        setLoadError(error instanceof Error ? error.message : 'Failed to load releases');
-        toast.error('Failed to load releases from API');
+        if (error instanceof Error && error.name === 'AbortError') {
+          console.log('[Releases] Fetch aborted');
+          return;
+        }
+        console.error('[Releases] Error fetching releases:', error);
+        if (isMounted) {
+          setLoadError(error instanceof Error ? error.message : 'Failed to load releases');
+          toast.error('Failed to load releases from API');
+        }
       } finally {
-        setIsLoading(false);
+        if (isMounted) {
+          setIsLoading(false);
+        }
       }
     };
 
     fetchReleases();
+    
+    return () => {
+      isMounted = false;
+      abortController.abort();
+    };
   }, []);
 
   const handleConnectNotion = async () => {

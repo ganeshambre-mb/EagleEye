@@ -1,4 +1,4 @@
-import React, { useRef, forwardRef, useImperativeHandle, useState, useEffect } from 'react';
+import { useRef, forwardRef, useImperativeHandle, useState, useEffect } from 'react';
 
 export type SummaryRef = {
   downloadPDF: () => Promise<void>;
@@ -86,7 +86,7 @@ interface InsightsData {
     release_count: number;
     last_week_releases?: number;
     change?: number;
-  };
+  } | null;
   trending_category: {
     category: string;
     current_week?: number;
@@ -96,7 +96,7 @@ interface InsightsData {
     total_releases?: number;
     current_month_releases?: number;
     last_month_releases?: number;
-  };
+  } | null;
   top_categories_current_week?: Array<{
     category: string;
     releases: number;
@@ -138,20 +138,26 @@ const Summary = forwardRef<SummaryRef, SummaryProps>(({ insights, isLoading, err
 
   // Fetch weekly releases data
   useEffect(() => {
+    let isMounted = true;
+    const abortController = new AbortController();
+    
     const fetchWeeklyReleases = async () => {
       setWeeklyReleasesLoading(true);
       setWeeklyReleasesError(null);
       
       try {
         // Fetch recent features and group by company
-        const response = await fetch('http://localhost:8000/features');
+        console.log('[Summary] Fetching features...');
+        const response = await fetch('http://localhost:8000/features', {
+          signal: abortController.signal
+        });
         
         if (!response.ok) {
           throw new Error(`Failed to fetch: ${response.status} ${response.statusText}`);
         }
         
         const features = await response.json();
-        console.log('Features data received:', features);
+        console.log('[Summary] Features data received:', features);
         
         // Get features from the last 7 days
         const oneWeekAgo = new Date();
@@ -216,17 +222,33 @@ const Summary = forwardRef<SummaryRef, SummaryProps>(({ insights, isLoading, err
           generated_at: new Date().toISOString()
         };
         
-        console.log('Transformed weekly releases data:', weeklyReleasesData);
-        setWeeklyReleases(weeklyReleasesData);
+        console.log('[Summary] Transformed weekly releases data:', weeklyReleasesData);
+        
+        if (isMounted) {
+          setWeeklyReleases(weeklyReleasesData);
+        }
       } catch (error) {
-        console.error('Error fetching features:', error);
-        setWeeklyReleasesError(error instanceof Error ? error.message : 'Failed to load release data');
+        if (error instanceof Error && error.name === 'AbortError') {
+          console.log('[Summary] Fetch aborted');
+          return;
+        }
+        console.error('[Summary] Error fetching features:', error);
+        if (isMounted) {
+          setWeeklyReleasesError(error instanceof Error ? error.message : 'Failed to load release data');
+        }
       } finally {
-        setWeeklyReleasesLoading(false);
+        if (isMounted) {
+          setWeeklyReleasesLoading(false);
+        }
       }
     };
 
     fetchWeeklyReleases();
+    
+    return () => {
+      isMounted = false;
+      abortController.abort();
+    };
   }, []);
 
   const handleDownloadPDF = async () => {
@@ -349,38 +371,49 @@ const Summary = forwardRef<SummaryRef, SummaryProps>(({ insights, isLoading, err
           ) : insights ? (
             <p className="top-insight-text" style={{ textAlign: 'left' }}>
               {(() => {
-                const company = insights.most_active_company?.company_name || 'Unknown';
+                const company = insights.most_active_company?.company_name || 'No company';
                 const releases = insights.most_active_company?.release_count || 0;
                 const topCategory = insights.trending_category?.category ? formatCategory(insights.trending_category.category) : 'various categories';
                 const categoryReleases = insights.trending_category?.current_week || insights.trending_category?.current_month_releases || 0;
                 const trend = insights.weekly_statistics?.trend || insights.monthly_statistics?.trend || '';
+                const totalReleases = insights.weekly_statistics?.current_week?.releases || insights.monthly_statistics?.current_month?.releases || 0;
                 
                 // Generate dynamic insight based on the data
-                if (insights.weekly_statistics && parseFloat(trend) > 1000) {
+                if (insights.weekly_statistics && trend && parseFloat(trend.replace('%', '')) > 1000) {
                   return (
                     <>
                       <strong>{company} had an exceptional week</strong> with {releases} releases, representing a massive {trend} increase. 
-                      The focus on {topCategory.toLowerCase()} ({categoryReleases} releases) shows a clear strategic priority in this area.
+                      {topCategory !== 'various categories' && ` The focus on ${topCategory.toLowerCase()} (${categoryReleases} releases) shows a clear strategic priority in this area.`}
                     </>
                   );
                 } else if (insights.most_active_company?.change && insights.most_active_company.change > 50) {
                   return (
                     <>
                       <strong>{company} significantly accelerated their release velocity</strong> with {releases} releases this week, 
-                      up by {insights.most_active_company.change} from last week. {topCategory} emerged as the key focus area.
+                      up by {insights.most_active_company.change} from last week. {topCategory !== 'various categories' && `${topCategory} emerged as the key focus area.`}
                     </>
                   );
-                } else if (releases > 0) {
+                } else if (releases > 0 || totalReleases > 0) {
                   return (
                     <>
-                      <strong>{company} led this week</strong> with {releases} releases. 
-                      The emphasis on {topCategory.toLowerCase()} ({categoryReleases} releases) indicates their current development priorities.
+                      {releases > 0 ? (
+                        <>
+                          <strong>{company} led this week</strong> with {releases} releases. 
+                          {topCategory !== 'various categories' && ` The emphasis on ${topCategory.toLowerCase()} (${categoryReleases} releases) indicates their current development priorities.`}
+                        </>
+                      ) : (
+                        <>
+                          <strong>This week saw {totalReleases} total releases</strong> across all companies.
+                          {topCategory !== 'various categories' && ` ${topCategory} was the most active category with ${categoryReleases} releases.`}
+                        </>
+                      )}
                     </>
                   );
                 } else {
                   return (
                     <>
-                      <strong>Release activity was moderate this week</strong> with {topCategory.toLowerCase()} being the most active category. 
+                      <strong>Release activity was limited this week</strong> with {totalReleases} total releases.
+                      {topCategory !== 'various categories' && ` ${topCategory} was the most active category.`}
                       Teams appear to be in a consolidation phase.
                     </>
                   );
@@ -446,8 +479,8 @@ const Summary = forwardRef<SummaryRef, SummaryProps>(({ insights, isLoading, err
             <p className="weekly-stat-value" style={{ fontSize: '14px', color: '#ef4444', textAlign: 'left' }}>Error</p>
           ) : (
             <>
-              <p className="weekly-stat-value" style={{ textAlign: 'left' }}>{insights?.most_active_company.company_name || 'N/A'}</p>
-              <p className="weekly-stat-change purple-text" style={{ textAlign: 'left' }}>{insights?.most_active_company.release_count || 0} releases</p>
+              <p className="weekly-stat-value" style={{ textAlign: 'left' }}>{insights?.most_active_company?.company_name || 'N/A'}</p>
+              <p className="weekly-stat-change purple-text" style={{ textAlign: 'left' }}>{insights?.most_active_company?.release_count || 0} releases</p>
             </>
           )}
         </div>
@@ -469,7 +502,7 @@ const Summary = forwardRef<SummaryRef, SummaryProps>(({ insights, isLoading, err
             <p className="weekly-stat-value" style={{ fontSize: '14px', color: '#ef4444', textAlign: 'left' }}>Error</p>
           ) : (
             <>
-              <p className="weekly-stat-value" style={{ textAlign: 'left' }}>{insights ? formatCategory(insights.trending_category.category) : 'N/A'}</p>
+              <p className="weekly-stat-value" style={{ textAlign: 'left' }}>{insights?.trending_category?.category ? formatCategory(insights.trending_category.category) : 'N/A'}</p>
               <p className="weekly-stat-change purple-text" style={{ textAlign: 'left' }}>
                 {insights?.trending_category?.current_week || 
                  insights?.trending_category?.current_month_releases || 0} releases 
