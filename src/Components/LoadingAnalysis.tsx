@@ -66,7 +66,7 @@ export function LoadingAnalysis({ companyId, onComplete }: LoadingAnalysisProps)
                 'Content-Type': 'application/json',
               },
               body: JSON.stringify({
-                company_id: companyId
+                company_id: '15'
               })
             }
           );
