@@ -59,12 +59,15 @@ export function LoadingAnalysis({ companyId, onComplete }: LoadingAnalysisProps)
         if (!isMounted) return;
         try {
           const scrapeResponse = await fetch(
-            `${baseURL}/companies/${companyId}/scrape-and-summarize?force_crawl=false&use_langchain=false`,
+            `${baseURL}/companies/${companyId}/process-company`,
             {
               method: 'POST',
               headers: {
                 'Content-Type': 'application/json',
-              }
+              },
+              body: JSON.stringify({
+                company_id: companyId
+              })
             }
           );
           
