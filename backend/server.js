@@ -251,16 +251,38 @@ app.post("/api/notion/sync-releases", async (req, res) => {
     
     const parentPageId = notionPageId; // Use the existing page as parent
 
-    // Create table header and rows as table block
-    // Note: Notion tables have a limit of 100 rows per table
-    const maxRowsPerTable = 20; // 1 for header + 99 data rows = 100 total
+    // Notion API limits:
+    // - Tables can have max 100 rows
+    // - Request payload should be kept small (batch size of 20-30 rows per request is safe)
+    const maxRowsPerTable = 99; // 1 header + 99 data rows = 100 total
+    const batchSize = 25; // Number of rows to add per API request (to avoid payload size limits)
+    
+    // Truncate if too many releases
     const releasesToSync = releases.slice(0, maxRowsPerTable);
+    const totalReleases = releasesToSync.length;
     
     if (releases.length > maxRowsPerTable) {
       console.log(`⚠️ Warning: Only syncing first ${maxRowsPerTable} releases due to Notion table limit`);
     }
+
+    // Helper function to create a table row from a release
+    const createTableRow = (release) => ({
+      type: "table_row",
+      table_row: {
+        cells: [
+          [{ type: "text", text: { content: (release.competitor || "").substring(0, 2000) } }], // Limit text length
+          [{ type: "text", text: { content: (release.feature || "").substring(0, 2000) } }],
+          [{ type: "text", text: { content: (release.summary || "").substring(0, 2000) } }],
+          [{ type: "text", text: { content: (release.category || "").substring(0, 2000) } }],
+          [{ type: "text", text: { content: (release.date || "").substring(0, 2000) } }]
+        ]
+      }
+    });
+
+    // Step 1: Create table with header and first batch of rows
+    const initialBatchSize = Math.min(batchSize, totalReleases);
+    const initialRows = releasesToSync.slice(0, initialBatchSize);
     
-    // Create table with proper structure
     const tableBlock = {
       object: "block",
       type: "table",
@@ -282,33 +304,17 @@ app.post("/api/notion/sync-releases", async (req, res) => {
               ]
             }
           },
-          // Data rows
-          ...releasesToSync.map(release => ({
-            type: "table_row",
-            table_row: {
-              cells: [
-                [{ type: "text", text: { content: release.competitor || "" } }],
-                [{ type: "text", text: { content: release.feature || "" } }],
-                [{ type: "text", text: { content: release.summary || "" } }],
-                [{ type: "text", text: { content: release.category || "" } }],
-                [{ type: "text", text: { content: release.date || "" } }]
-              ]
-            }
-          }))
+          // Initial data rows
+          ...initialRows.map(createTableRow)
         ]
       }
     };
 
-    // Add table to the page
-    console.log('📊 Creating table block...');
-    console.log('Table structure preview:', {
-      width: tableBlock.table.table_width,
-      hasHeader: tableBlock.table.has_column_header,
-      rowCount: tableBlock.table.children.length
-    });
+    console.log(`📊 Creating table with ${initialRows.length} initial rows (total: ${totalReleases})...`);
     
+    let tableBlockId;
     try {
-      await axios.patch(
+      const createResponse = await axios.patch(
         `https://api.notion.com/v1/blocks/${parentPageId}/children`,
         {
           children: [tableBlock]
@@ -321,20 +327,68 @@ app.post("/api/notion/sync-releases", async (req, res) => {
           },
         }
       );
-      console.log(`✅ Added table with ${releasesToSync.length} rows`);
+      
+      // Extract the table block ID from the response
+      tableBlockId = createResponse.data.results[0]?.id;
+      if (!tableBlockId) {
+        throw new Error('Failed to get table block ID from Notion response');
+      }
+      
+      console.log(`✅ Created table with ${initialRows.length} rows. Table ID: ${tableBlockId}`);
     } catch (tableError) {
-      console.error('❌ Failed to add table:', JSON.stringify(tableError.response?.data, null, 2));
+      console.error('❌ Failed to create table:', JSON.stringify(tableError.response?.data, null, 2));
       throw tableError;
     }
 
-    console.log(`✅ Successfully synced ${releasesToSync.length} releases to Notion`);
+    // Step 2: Add remaining rows in batches
+    const remainingReleases = releasesToSync.slice(initialBatchSize);
+    let syncedCount = initialRows.length;
+    
+    if (remainingReleases.length > 0) {
+      console.log(`📝 Adding remaining ${remainingReleases.length} rows in batches of ${batchSize}...`);
+      
+      for (let i = 0; i < remainingReleases.length; i += batchSize) {
+        const batch = remainingReleases.slice(i, i + batchSize);
+        const batchRows = batch.map(createTableRow);
+        
+        try {
+          await axios.patch(
+            `https://api.notion.com/v1/blocks/${tableBlockId}/children`,
+            {
+              children: batchRows
+            },
+            {
+              headers: {
+                Authorization: `Bearer ${tokenData.accessToken}`,
+                "Notion-Version": "2022-06-28",
+                "Content-Type": "application/json",
+              },
+            }
+          );
+          
+          syncedCount += batch.length;
+          console.log(`✅ Added batch ${Math.floor(i / batchSize) + 1}: ${batch.length} rows (${syncedCount}/${totalReleases} total)`);
+          
+          // Small delay between batches to avoid rate limiting
+          if (i + batchSize < remainingReleases.length) {
+            await new Promise(resolve => setTimeout(resolve, 200));
+          }
+        } catch (batchError) {
+          console.error(`❌ Failed to add batch starting at row ${i + 1}:`, JSON.stringify(batchError.response?.data, null, 2));
+          // Continue with next batch instead of failing completely
+          console.log(`⚠️ Continuing with remaining batches...`);
+        }
+      }
+    }
+
+    console.log(`✅ Successfully synced ${syncedCount} releases to Notion`);
 
     res.json({
       success: true,
-      message: `Successfully synced ${releasesToSync.length} releases as table to Eagle Eye Integration Page`,
+      message: `Successfully synced ${syncedCount} releases as table to Eagle Eye Integration Page`,
       pageId: parentPageId,
       pageUrl: `https://notion.so/${parentPageId.replace(/-/g, '')}`,
-      syncedCount: releasesToSync.length,
+      syncedCount: syncedCount,
       totalCount: releases.length
     });
   } catch (error) {
