@@ -1,5 +1,6 @@
 import React, { useRef, useEffect, useState } from 'react';
 import { LineChart, Line, BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import InsightsGrid from './InsightsGrid';
 
 interface InsightsData {
   id: number;
@@ -44,31 +45,6 @@ interface InsightsData {
   created_at?: string;
 }
 
-interface AnomalyData {
-  id: number;
-  feature_id: number;
-  company_id: number;
-  category_id: number | null;
-  anomaly_score: number;
-  business_rank: number;
-  business_value_score: number;
-  explanation: string;
-  business_reason: string;
-  detection_weeks: number;
-  detected_at: string;
-  release_date: string;
-  feature: {
-    id: number;
-    name: string;
-    summary: string;
-    highlights: string[];
-    category: string;
-    company_name: string;
-    release_date: string;
-    version: string | null;
-  };
-}
-
 interface OverviewData {
   overview: {
     total_releases: number;
@@ -111,10 +87,7 @@ interface OverviewData {
 const Analysis: React.FC = () => {
   const analysisContentRef = useRef<HTMLDivElement>(null);
   const [insights, setInsights] = useState<InsightsData | null>(null);
-  const [anomalies, setAnomalies] = useState<AnomalyData[]>([]);
   const [overview, setOverview] = useState<OverviewData | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
 
   const handleDownloadPDF = async () => {
     if (!analysisContentRef.current) return;
@@ -178,22 +151,18 @@ const Analysis: React.FC = () => {
     }
   };
 
-  // Fetch insights, anomalies and overview data from APIs
+  // Fetch insights and overview data from APIs
   useEffect(() => {
     let isMounted = true;
     const abortController = new AbortController();
     
     const fetchData = async () => {
-      setIsLoading(true);
-      setError(null);
-      
       try {
         console.log('[Analysis] Fetching data from APIs...');
         
         // Fetch all APIs in parallel
-        const [insightsResponse, anomaliesResponse, overviewResponse] = await Promise.all([
+        const [insightsResponse, overviewResponse] = await Promise.all([
           fetch('http://localhost:8000/insights/latest', { signal: abortController.signal }),
-          fetch('http://localhost:8000/anomalies', { signal: abortController.signal }),
           fetch('http://localhost:8000/analytics/overview', { signal: abortController.signal })
         ]);
         
@@ -208,22 +177,6 @@ const Analysis: React.FC = () => {
           console.warn('[Analysis] Failed to fetch insights');
           if (isMounted) {
             setInsights(null);
-          }
-        }
-        
-        // Handle anomalies response
-        if (anomaliesResponse && anomaliesResponse.ok) {
-          const anomaliesData = await anomaliesResponse.json();
-          console.log('[Analysis] Anomalies data received:', anomaliesData);
-          // If the response is an array, use it directly, otherwise check for a data property
-          const anomaliesArray = Array.isArray(anomaliesData) ? anomaliesData : anomaliesData.anomalies || [];
-          if (isMounted) {
-            setAnomalies(anomaliesArray);
-          }
-        } else {
-          console.warn('[Analysis] Failed to fetch anomalies');
-          if (isMounted) {
-            setAnomalies([]);
           }
         }
         
@@ -248,15 +201,9 @@ const Analysis: React.FC = () => {
         console.error('[Analysis] Error fetching data:', error);
         // Don't completely fail if API is unavailable, show the page with sample data
         if (isMounted) {
-          setError(error instanceof Error ? error.message : 'Failed to load data');
           // Set some default data to prevent blank page
           setInsights(null);
-          setAnomalies([]);
           setOverview(null);
-        }
-      } finally {
-        if (isMounted) {
-          setIsLoading(false);
         }
       }
     };
@@ -375,151 +322,16 @@ const Analysis: React.FC = () => {
         </button>
       </div>
 
-      <div className="insights-grid">
-        {/* Trending Insight */}
-        <div className="insight-card trending">
-          <div className="insight-icon-wrapper trending-icon">
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
-              <path d="M3 17L9 11L13 15L21 7" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-              <path d="M14 7H21V14" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-            </svg>
-          </div>
-          <div className="insight-content">
-            <h3 className="insight-title" style={{ textAlign: 'left' }}>📊 Trending Insight</h3>
-            {isLoading ? (
-              <p className="insight-text" style={{ textAlign: 'left' }}>Loading insights...</p>
-            ) : error ? (
-              <p className="insight-text" style={{ color: '#ef4444', textAlign: 'left' }}>Error loading data</p>
-            ) : insights ? (
-              <p className="insight-text" style={{ textAlign: 'left' }} dangerouslySetInnerHTML={{ 
-                __html: insights.trending_insight
-                  .replace(/\+?\d+%/g, (match) => `<strong class="highlight-teal">${match}</strong>`)
-                  .replace(/\d+ features?/g, (match) => `<strong class="highlight-teal">${match}</strong>`)
-              }} />
-            ) : (
-              <p className="insight-text" style={{ textAlign: 'left' }}>
-                Leading company released <strong className="highlight-teal">45 new features</strong> this month, 
-                representing a <strong className="highlight-teal">+15%</strong> trend overall.
-              </p>
-            )}
-          </div>
-        </div>
-
-        {/* Category Leader */}
-        <div className="insight-card category">
-          <div className="insight-icon-wrapper category-icon">
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
-              <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="2"/>
-              <circle cx="12" cy="12" r="5" stroke="currentColor" strokeWidth="2"/>
-              <circle cx="12" cy="12" r="2" fill="currentColor"/>
-            </svg>
-          </div>
-          <div className="insight-content">
-            <h3 className="insight-title" style={{ textAlign: 'left' }}>🏆 Category Leader</h3>
-            {isLoading ? (
-              <p className="insight-text" style={{ textAlign: 'left' }}>Loading insights...</p>
-            ) : error ? (
-              <p className="insight-text" style={{ color: '#ef4444', textAlign: 'left' }}>Error loading data</p>
-            ) : insights ? (
-              <p className="insight-text" style={{ textAlign: 'left' }} dangerouslySetInnerHTML={{ 
-                __html: insights.category_leader
-                  .replace(/'([^']+)' category/g, (_match, category) => `<strong class="highlight-blue">${formatCategory(category)} category</strong>`)
-                  .replace(/\d+ new releases?/g, (match) => `<strong class="highlight-blue">${match}</strong>`)
-                  .replace(/\d+ companies?/g, (match) => `<strong class="highlight-blue">${match}</strong>`)
-              }} />
-            ) : (
-              <p className="insight-text" style={{ textAlign: 'left' }}>
-                <strong className="highlight-blue">Analytics category</strong> is dominating with 
-                <strong className="highlight-blue"> 28 releases</strong> this month.
-              </p>
-            )}
-          </div>
-        </div>
-
-        {/* Velocity Alert */}
-        <div className="insight-card velocity">
-          <div className="insight-icon-wrapper velocity-icon">
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
-              <path d="M13 2L3 14h8l-1 8 10-12h-8l1-8z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-            </svg>
-          </div>
-          <div className="insight-content">
-            <h3 className="insight-title" style={{ textAlign: 'left' }}>💨 Velocity Alert</h3>
-            {isLoading ? (
-              <p className="insight-text" style={{ textAlign: 'left' }}>Loading insights...</p>
-            ) : error ? (
-              <p className="insight-text" style={{ color: '#ef4444', textAlign: 'left' }}>Error loading data</p>
-            ) : insights ? (
-              <p className="insight-text" style={{ textAlign: 'left' }} dangerouslySetInnerHTML={{ 
-                __html: insights.velocity_alert
-                  .replace(/\d+ features?/g, (match) => `<strong class="highlight-purple">${match}</strong>`)
-                  .replace(/\+?\d+%/g, (match) => `<strong class="highlight-purple">${match}</strong>`)
-                  .replace(/Q\d+ \d+/g, (match) => `<strong class="highlight-purple">${match}</strong>`)
-              }} />
-            ) : (
-              <p className="insight-text" style={{ textAlign: 'left' }}>
-                The market is accelerating—
-                <strong className="highlight-purple"> 120 total releases</strong> this month vs 
-                <strong className="highlight-purple"> 95 last month</strong> 
-                (+26%).
-              </p>
-            )}
-          </div>
-        </div>
-
-        {/* Pattern Detected */}
-        <div className="insight-card pattern">
-          <div className="insight-icon-wrapper pattern-icon">
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
-              <circle cx="12" cy="12" r="2" fill="currentColor"/>
-              <circle cx="6" cy="6" r="2" fill="currentColor"/>
-              <circle cx="18" cy="6" r="2" fill="currentColor"/>
-              <circle cx="6" cy="18" r="2" fill="currentColor"/>
-              <circle cx="18" cy="18" r="2" fill="currentColor"/>
-              <path d="M12 10V14M10 12H14M7 7L10.5 10.5M14.5 10.5L18 7M7 17L10.5 13.5M14.5 13.5L18 17" stroke="currentColor" strokeWidth="1.5"/>
-            </svg>
-          </div>
-          <div className="insight-content">
-            <h3 className="insight-title" style={{ textAlign: 'left' }}>🎯 Pattern Detected</h3>
-            {isLoading ? (
-              <p className="insight-text" style={{ textAlign: 'left' }}>Loading patterns...</p>
-            ) : anomalies && anomalies.length > 0 ? (
-              <div className="insight-text" style={{ textAlign: 'left', maxHeight: '140px', overflowY: 'auto' }}>
-                {(() => {
-                  // Get top 3 anomalies sorted by business_rank (lower rank = higher priority)
-                  // Filter out "Not ranked" items (business_rank = 999)
-                  const top3Anomalies = [...anomalies]
-                    .filter(a => a.business_rank < 999)
-                    .sort((a, b) => a.business_rank - b.business_rank)
-                    .slice(0, 3);
-
-                  if (top3Anomalies.length === 0) {
-                    return (
-                      <p style={{ margin: 0 }}>
-                        All <strong className="highlight-teal">competitors</strong> are showing consistent release patterns—market is stable with no significant anomalies detected.
-                      </p>
-                    );
-                  }
-
-                  return (
-                    <ul style={{ margin: 0, paddingLeft: '1.2em', listStyle: 'disc' }}>
-                      {top3Anomalies.map((anomaly, index) => (
-                        <li key={anomaly.id} style={{ marginBottom: index < top3Anomalies.length - 1 ? '0.75em' : 0 }}>
-                          <strong className="highlight-teal">{anomaly.feature.company_name}</strong> - {anomaly.feature.name}: {anomaly.business_reason}
-                        </li>
-                      ))}
-                    </ul>
-                  );
-                })()}
-              </div>
-            ) : (
-              <p className="insight-text" style={{ textAlign: 'left' }}>
-                All <strong className="highlight-teal">competitors</strong> are showing consistent release patterns—market is stable with no significant anomalies detected.
-              </p>
-            )}
-          </div>
-        </div>
+      <div className="section-header" style={{ marginBottom: '24px', textAlign: 'left' }}>
+        <h3 style={{ fontSize: '1.25rem', fontWeight: '600', color: '#1a1a1a', marginBottom: '8px', textAlign: 'left' }}>
+          Key Insights
+        </h3>
+        <p style={{ fontSize: '0.875rem', color: '#6b7280', textAlign: 'left' }}>
+          Real-time competitive intelligence and market trends
+        </p>
       </div>
+
+      <InsightsGrid />
 
       {/* Charts Section */}
       <div className="charts-section">

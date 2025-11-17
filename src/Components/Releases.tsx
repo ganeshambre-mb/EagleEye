@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import html2canvas from 'html2canvas';
 import jsPDF from 'jspdf';
@@ -8,6 +8,7 @@ import DataService from '../services/DataService';
 import type { EmailPayload } from '../services/DataService';
 import { useNotion } from '../context/NotionContext';
 import { EMAIL_BODY, EMAIL_SUBJECT, EMAIL_FILENAME } from '../constants/emailConstants';
+import InsightsGrid from './InsightsGrid';
 
 interface Release {
   id: number;
@@ -34,6 +35,15 @@ const Releases: React.FC = () => {
   const [syncMessage, setSyncMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
+  
+  // Add Company/Category modal states
+  const [showAddCompanyModal, setShowAddCompanyModal] = useState(false);
+  const [showAddCategoryModal, setShowAddCategoryModal] = useState(false);
+  const [companyName, setCompanyName] = useState('');
+  const [companyReleaseUrl, setCompanyReleaseUrl] = useState('');
+  const [categoryName, setCategoryName] = useState('');
+  const [categoryDescription, setCategoryDescription] = useState('');
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
 
   // State for releases data
   const [releases, setReleases] = useState<Release[]>([]);
@@ -96,6 +106,42 @@ const Releases: React.FC = () => {
     return diffDays <= 7;
   };
 
+  // Helper function to highlight matching search text
+  const highlightText = (text: string, query: string): React.ReactNode => {
+    if (!query.trim()) {
+      return text;
+    }
+
+    const parts = text.split(new RegExp(`(${query})`, 'gi'));
+    return (
+      <span style={{ display: 'inline' }}>
+        {parts.map((part, index) => 
+          part.toLowerCase() === query.toLowerCase() ? (
+            <mark 
+              key={index} 
+              style={{ 
+                backgroundColor: '#fde047', 
+                color: '#1a1a1a',
+                padding: '1px 0',
+                margin: '0',
+                fontWeight: '600',
+                borderRadius: '2px',
+                boxDecorationBreak: 'clone',
+                WebkitBoxDecorationBreak: 'clone',
+                display: 'inline',
+                lineHeight: 'inherit'
+              }}
+            >
+              {part}
+            </mark>
+          ) : (
+            <span key={index} style={{ display: 'inline' }}>{part}</span>
+          )
+        )}
+      </span>
+    );
+  };
+
   // Filter releases based on search query
   const filteredReleases = React.useMemo(() => {
     if (!searchQuery.trim()) {
@@ -129,83 +175,319 @@ const Releases: React.FC = () => {
   }, [itemsPerPage]);
 
   // Fetch releases data from API
-  useEffect(() => {
-    let isMounted = true;
-    const abortController = new AbortController();
+  const fetchReleases = useCallback(async () => {
+    setIsLoading(true);
+    setLoadError(null);
     
-    const fetchReleases = async () => {
-      setIsLoading(true);
-      setLoadError(null);
+    try {
+      console.log('[Releases] Fetching features...');
+      const response = await fetch('http://localhost:8000/features?skip=0&limit=1000');
       
-      try {
-        console.log('[Releases] Fetching features...');
-        const response = await fetch('http://localhost:8000/features?skip=0&limit=1000', {
-          signal: abortController.signal
-        });
-        
-        if (!response.ok) {
-          throw new Error(`Failed to fetch: ${response.status} ${response.statusText}`);
-        }
-        
-        const data = await response.json();
-        console.log('[Releases] Features data received:', data.length, 'items');
-        
-        // Transform API data to match our Release interface
-        interface APIFeature {
-          id: number;
-          release_id: number;
-          name: string;
-          summary: string;
-          highlights?: string[];
-          category: string;
-          company_id: number;
-          company_name: string;
-          release_date: string;
-          version?: string | null;
-          assigned_category_id?: number | null;
-          category_confidence?: number | null;
-          created_at: string;
-        }
-        
-        const transformedReleases: Release[] = (data as APIFeature[]).map((item) => ({
-          id: item.id,
-          competitor: item.company_name,
-          competitorInitial: item.company_name.charAt(0).toUpperCase(),
-          competitorColor: getCompetitorColor(item.company_name),
-          feature: item.name,
-          summary: item.summary,
-          category: formatCategory(item.category),
-          priority: determinePriority(item.category),
-          date: formatDate(item.release_date)
-        }));
-        
-        if (isMounted) {
-          setReleases(transformedReleases);
-        }
-      } catch (error) {
-        if (error instanceof Error && error.name === 'AbortError') {
-          console.log('[Releases] Fetch aborted');
-          return;
-        }
-        console.error('[Releases] Error fetching releases:', error);
-        if (isMounted) {
-          setLoadError(error instanceof Error ? error.message : 'Failed to load releases');
-          toast.error('Failed to load releases from API');
-        }
-      } finally {
-        if (isMounted) {
-          setIsLoading(false);
-        }
+      if (!response.ok) {
+        throw new Error(`Failed to fetch: ${response.status} ${response.statusText}`);
       }
-    };
-
-    fetchReleases();
-    
-    return () => {
-      isMounted = false;
-      abortController.abort();
-    };
+      
+      const data = await response.json();
+      console.log('[Releases] Features data received:', data.length, 'items');
+      
+      // Transform API data to match our Release interface
+      interface APIFeature {
+        id: number;
+        release_id: number;
+        name: string;
+        summary: string;
+        highlights?: string[];
+        category: string;
+        company_id: number;
+        company_name: string;
+        release_date: string;
+        version?: string | null;
+        assigned_category_id?: number | null;
+        category_confidence?: number | null;
+        created_at: string;
+      }
+      
+      const transformedReleases: Release[] = (data as APIFeature[]).map((item) => ({
+        id: item.id,
+        competitor: item.company_name,
+        competitorInitial: item.company_name.charAt(0).toUpperCase(),
+        competitorColor: getCompetitorColor(item.company_name),
+        feature: item.name,
+        summary: item.summary,
+        category: formatCategory(item.category),
+        priority: determinePriority(item.category),
+        date: formatDate(item.release_date)
+      }));
+      
+      setReleases(transformedReleases);
+    } catch (error) {
+      console.error('[Releases] Error fetching releases:', error);
+      setLoadError(error instanceof Error ? error.message : 'Failed to load releases');
+      toast.error('Failed to load releases from API');
+    } finally {
+      setIsLoading(false);
+    }
   }, []);
+
+  useEffect(() => {
+    fetchReleases();
+  }, [fetchReleases]);
+
+  // Refresh releases list after re-run
+  const refreshReleases = async () => {
+    console.log('[Releases] Refreshing releases data...');
+    await fetchReleases();
+  };
+
+  // Re-run analysis handler
+  const handleRerunAnalysis = async () => {
+    if (releases.length === 0) {
+      toast.warning('No data to analyze. Please add a company first.');
+      return;
+    }
+
+    setIsAnalyzing(true);
+    const baseURL = 'http://localhost:8000';
+    const toastId = toast.info('Starting analysis...', { autoClose: false });
+
+    try {
+      // Get all unique company IDs from current releases
+      const companyIds = [...new Set(releases.map(r => r.id))];
+      
+      // If no companies, try to get first company from API
+      let targetCompanyId: number | null = null;
+      if (companyIds.length === 0) {
+        const companiesResponse = await fetch(`${baseURL}/companies?skip=0&limit=1`);
+        if (companiesResponse.ok) {
+          const companies = await companiesResponse.json();
+          if (companies.length > 0) {
+            targetCompanyId = companies[0].id;
+          }
+        }
+      } else {
+        targetCompanyId = companyIds[0];
+      }
+
+      if (!targetCompanyId) {
+        toast.update(toastId, {
+          render: 'No companies found to analyze',
+          type: 'error',
+          autoClose: 5000
+        });
+        return;
+      }
+
+      // Step 1: Scrape and summarize
+      toast.update(toastId, { render: 'Fetching updates from sources...' });
+      const scrapeResponse = await fetch(
+        `${baseURL}/companies/${targetCompanyId}/scrape-and-summarize?force_crawl=false&use_langchain=false`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' }
+        }
+      );
+      
+      if (scrapeResponse.ok) {
+        console.log('✓ Step 1: Scrape and summarize completed');
+      }
+
+      // Step 2: Classify features
+      toast.update(toastId, { render: 'Categorizing new releases...' });
+      const classifyResponse = await fetch(
+        `${baseURL}/features/classify-direct?require_threshold=false`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({})
+        }
+      );
+      
+      if (classifyResponse.ok) {
+        console.log('✓ Step 2: Classification completed');
+      }
+
+      // Step 3: Build insights
+      toast.update(toastId, { render: 'Building insights and trends...' });
+      const anomaliesResponse = await fetch(`${baseURL}/analytics/anomalies-enhanced`);
+      
+      if (anomaliesResponse.ok) {
+        console.log('✓ Step 3: Insights completed');
+      }
+
+      // Success - refresh data
+      toast.update(toastId, {
+        render: 'Re-run successful! Refreshing data...',
+        type: 'success',
+        autoClose: 2000
+      });
+
+      await refreshReleases();
+      
+      toast.success('Analysis complete and data refreshed!');
+    } catch (error) {
+      console.error('[Releases] Re-run analysis error:', error);
+      toast.update(toastId, {
+        render: 'Analysis failed. Please try again.',
+        type: 'error',
+        autoClose: 5000
+      });
+    } finally {
+      setIsAnalyzing(false);
+    }
+  };
+
+  // Add company handler
+  const handleAddCompany = async () => {
+    if (!companyName.trim() || !companyReleaseUrl.trim()) {
+      toast.warning('Please provide both company name and release page URL');
+      return;
+    }
+
+    const baseURL = 'http://localhost:8000';
+
+    try {
+      console.log('[Releases] Creating company:', companyName);
+      
+      const response = await fetch(`${baseURL}/companies`, {
+        method: 'POST',
+        headers: {
+          'accept': 'application/json',
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          name: companyName,
+          homepage_url: companyReleaseUrl
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to create company');
+      }
+
+      const createdCompany = await response.json();
+      console.log('[Releases] Company created:', createdCompany);
+      
+      toast.success(`Company "${companyName}" added successfully!`);
+      
+      // Close modal and reset form
+      setShowAddCompanyModal(false);
+      setCompanyName('');
+      setCompanyReleaseUrl('');
+
+      // Trigger re-run analysis with the new company
+      toast.info('Triggering re-run analysis...');
+      setIsAnalyzing(true);
+      
+      const toastId = toast.info('Starting analysis...', { autoClose: false });
+
+      try {
+        // Step 1: Scrape and summarize
+        toast.update(toastId, { render: 'Fetching updates from sources...' });
+        const scrapeResponse = await fetch(
+          `${baseURL}/companies/${createdCompany.id}/scrape-and-summarize?force_crawl=false&use_langchain=false`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' }
+          }
+        );
+        
+        if (scrapeResponse.ok) {
+          console.log('✓ Step 1: Scrape and summarize completed');
+        }
+
+        // Step 2: Classify features
+        toast.update(toastId, { render: 'Categorizing new releases...' });
+        const classifyResponse = await fetch(
+          `${baseURL}/features/classify-direct?require_threshold=false`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({})
+          }
+        );
+        
+        if (classifyResponse.ok) {
+          console.log('✓ Step 2: Classification completed');
+        }
+
+        // Step 3: Build insights
+        toast.update(toastId, { render: 'Building insights and trends...' });
+        const anomaliesResponse = await fetch(`${baseURL}/analytics/anomalies-enhanced`);
+        
+        if (anomaliesResponse.ok) {
+          console.log('✓ Step 3: Insights completed');
+        }
+
+        // Success - refresh data
+        toast.update(toastId, {
+          render: 'Re-run successful! Refreshing data...',
+          type: 'success',
+          autoClose: 2000
+        });
+
+        await refreshReleases();
+        
+        toast.success('Analysis complete and data refreshed!');
+      } catch (analysisError) {
+        console.error('[Releases] Analysis error:', analysisError);
+        toast.update(toastId, {
+          render: 'Analysis failed, but company was added.',
+          type: 'warning',
+          autoClose: 5000
+        });
+      } finally {
+        setIsAnalyzing(false);
+      }
+    } catch (error) {
+      console.error('[Releases] Error adding company:', error);
+      toast.error('Failed to add company. Please try again.');
+    }
+  };
+
+  // Add category handler
+  const handleAddCategory = async () => {
+    if (!categoryName.trim()) {
+      toast.warning('Please provide a category name');
+      return;
+    }
+
+    const baseURL = 'http://localhost:8000';
+
+    try {
+      console.log('[Releases] Creating category:', categoryName);
+      
+      // Build URL with query parameters
+      const url = new URL(`${baseURL}/categories`);
+      url.searchParams.append('name', categoryName);
+      if (categoryDescription.trim()) {
+        url.searchParams.append('description', categoryDescription);
+      }
+
+      const response = await fetch(url.toString(), {
+        method: 'POST',
+        headers: {
+          'accept': 'application/json',
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to create category');
+      }
+
+      const createdCategory = await response.json();
+      console.log('[Releases] Category created:', createdCategory);
+      
+      toast.success(`Category "${categoryName}" added successfully!`);
+      
+      // Close modal and reset form
+      setShowAddCategoryModal(false);
+      setCategoryName('');
+      setCategoryDescription('');
+    } catch (error) {
+      console.error('[Releases] Error adding category:', error);
+      toast.error('Failed to add category. Please try again.');
+    }
+  };
 
   const handleConnectNotion = async () => {
     if (!isConnected) {
@@ -562,6 +844,28 @@ const Releases: React.FC = () => {
       {/* Main Content - Only show when not loading and no error */}
       {!isLoading && !loadError && (
         <>
+      {/* Insights Section */}
+      <div className="section-header" style={{ marginBottom: '24px', marginTop: '24px', textAlign: 'left' }}>
+        <h3 style={{ fontSize: '1.25rem', fontWeight: '600', color: '#1a1a1a', marginBottom: '8px', textAlign: 'left' }}>
+          Key Insights
+        </h3>
+        <p style={{ fontSize: '0.875rem', color: '#6b7280', textAlign: 'left' }}>
+          Market intelligence at a glance
+        </p>
+      </div>
+
+      <InsightsGrid />
+
+      {/* Releases Section */}
+      <div className="section-header" style={{ marginBottom: '20px', marginTop: '40px', textAlign: 'left' }}>
+        <h3 style={{ fontSize: '1.25rem', fontWeight: '600', color: '#1a1a1a', marginBottom: '8px', textAlign: 'left' }}>
+          Release Tracker
+        </h3>
+        <p style={{ fontSize: '0.875rem', color: '#6b7280', textAlign: 'left' }}>
+          All competitor feature releases and updates
+        </p>
+      </div>
+
       {/* Search and Re-run Bar */}
       <div className="search-bar-container">
         <div className="search-input-wrapper">
@@ -577,13 +881,49 @@ const Releases: React.FC = () => {
             className="search-input"
           />
         </div>
-        <button className="rerun-button">
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-            <path d="M14 8C14 11.3137 11.3137 14 8 14C4.68629 14 2 11.3137 2 8C2 4.68629 4.68629 2 8 2C10.2091 2 12.1046 3.13258 13.1244 4.83337" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
-            <path d="M14 2V5H11" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-          </svg>
-          Re-run Analysis
-        </button>
+        <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+          <button 
+            className="inline-action-button"
+            onClick={() => setShowAddCompanyModal(true)}
+            disabled={isAnalyzing}
+          >
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+              <path d="M8 3V13M3 8H13" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+            </svg>
+            Add Company
+          </button>
+          <button 
+            className="inline-action-button"
+            onClick={() => setShowAddCategoryModal(true)}
+          >
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+              <path d="M8 3V13M3 8H13" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+            </svg>
+            Add Category
+          </button>
+          <button 
+            className="rerun-button"
+            onClick={handleRerunAnalysis}
+            disabled={isAnalyzing}
+          >
+            {isAnalyzing ? (
+              <>
+                <svg className="spinning" width="16" height="16" viewBox="0 0 16 16" fill="none">
+                  <circle cx="8" cy="8" r="6" stroke="currentColor" strokeWidth="2" strokeDasharray="9.42 9.42" strokeLinecap="round"/>
+                </svg>
+                Analyzing...
+              </>
+            ) : (
+              <>
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                  <path d="M14 8C14 11.3137 11.3137 14 8 14C4.68629 14 2 11.3137 2 8C2 4.68629 4.68629 2 8 2C10.2091 2 12.1046 3.13258 13.1244 4.83337" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+                  <path d="M14 2V5H11" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
+                Re-run Analysis
+              </>
+            )}
+          </button>
+        </div>
       </div>
 
       {/* Sync Status Message */}
@@ -679,16 +1019,16 @@ const Releases: React.FC = () => {
                         {release.competitorInitial}
                       </div>
                       <div className="competitor-info">
-                        <span className="competitor-name">{release.competitor}</span>
+                        <span className="competitor-name">{highlightText(release.competitor, searchQuery)}</span>
                         {isNewRelease(release.date) && (
                           <span className="new-badge">New</span>
                         )}
                       </div>
                     </div>
                   </td>
-                  <td className="feature-cell">{release.feature}</td>
-                  <td className="summary-cell">{release.summary}</td>
-                  <td className="category-cell">{release.category}</td>
+                  <td className="feature-cell">{highlightText(release.feature, searchQuery)}</td>
+                  <td className="summary-cell">{highlightText(release.summary, searchQuery)}</td>
+                  <td className="category-cell">{highlightText(release.category, searchQuery)}</td>
                   <td className="date-cell">{release.date}</td>
                 </tr>
               ))
@@ -823,6 +1163,126 @@ const Releases: React.FC = () => {
           )}
         </div>
       </div>
+
+      {/* Add Company Modal */}
+      {showAddCompanyModal && (
+        <div className="email-modal-overlay" onClick={() => setShowAddCompanyModal(false)}>
+          <div className="email-modal-content" onClick={(e) => e.stopPropagation()}>
+            <div className="email-modal-header">
+              <h3>Add Company</h3>
+              <button className="email-modal-close" onClick={() => setShowAddCompanyModal(false)}>
+                <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+                  <path d="M15 5L5 15M5 5L15 15" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+                </svg>
+              </button>
+            </div>
+            <div className="email-modal-body">
+              <div className="email-modal-field">
+                <label htmlFor="company-name-input" className="email-modal-label">
+                  Company Name:
+                </label>
+                <input
+                  id="company-name-input"
+                  type="text"
+                  className="email-modal-input"
+                  placeholder="e.g., Zenoti"
+                  value={companyName}
+                  onChange={(e) => setCompanyName(e.target.value)}
+                  disabled={isAnalyzing}
+                />
+              </div>
+              <div className="email-modal-field">
+                <label htmlFor="company-url-input" className="email-modal-label">
+                  Release Page URL:
+                </label>
+                <input
+                  id="company-url-input"
+                  type="text"
+                  className="email-modal-input"
+                  placeholder="https://example.com/releases"
+                  value={companyReleaseUrl}
+                  onChange={(e) => setCompanyReleaseUrl(e.target.value)}
+                  disabled={isAnalyzing}
+                />
+              </div>
+            </div>
+            <div className="email-modal-footer">
+              <button
+                className="email-modal-cancel"
+                onClick={() => setShowAddCompanyModal(false)}
+                disabled={isAnalyzing}
+              >
+                Cancel
+              </button>
+              <button
+                className="email-modal-send"
+                onClick={handleAddCompany}
+                disabled={isAnalyzing}
+              >
+                {isAnalyzing ? 'Adding...' : 'Add Company'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Add Category Modal */}
+      {showAddCategoryModal && (
+        <div className="email-modal-overlay" onClick={() => setShowAddCategoryModal(false)}>
+          <div className="email-modal-content" onClick={(e) => e.stopPropagation()}>
+            <div className="email-modal-header">
+              <h3>Add Category</h3>
+              <button className="email-modal-close" onClick={() => setShowAddCategoryModal(false)}>
+                <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+                  <path d="M15 5L5 15M5 5L15 15" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+                </svg>
+              </button>
+            </div>
+            <div className="email-modal-body">
+              <div className="email-modal-field">
+                <label htmlFor="category-name-input" className="email-modal-label">
+                  Category Name:
+                </label>
+                <input
+                  id="category-name-input"
+                  type="text"
+                  className="email-modal-input"
+                  placeholder="e.g., Analytics"
+                  value={categoryName}
+                  onChange={(e) => setCategoryName(e.target.value)}
+                />
+              </div>
+              <div className="email-modal-field">
+                <label htmlFor="category-desc-input" className="email-modal-label">
+                  Description:
+                </label>
+                <input
+                  id="category-desc-input"
+                  type="text"
+                  className="email-modal-input"
+                  placeholder="Optional description"
+                  value={categoryDescription}
+                  onChange={(e) => setCategoryDescription(e.target.value)}
+                />
+              </div>
+            </div>
+            <div className="email-modal-footer">
+              <button
+                className="email-modal-cancel"
+                onClick={() => setShowAddCategoryModal(false)}
+              >
+                Cancel
+              </button>
+              <button
+                className="email-modal-send"
+                onClick={handleAddCategory}
+              >
+                Add Category
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Email Modal */}
       {showEmailModal && (
