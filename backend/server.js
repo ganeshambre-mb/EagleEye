@@ -9,8 +9,13 @@ const app = express();
 const PORT = process.env.PORT || 5000;
 
 // Middleware
+const allowedOrigins = [
+  process.env.FRONTEND_URL || "http://localhost:5174",
+  process.env.FRONTEND_URL_ALT || "http://localhost:5173"
+].filter(Boolean);
+
 app.use(cors({
-  origin: ["http://localhost:5173", "http://localhost:5174"], // Vite default and alternate ports
+  origin: allowedOrigins,
   credentials: true
 }));
 app.use(express.json());

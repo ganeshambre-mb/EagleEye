@@ -19,7 +19,8 @@ export interface EmailPayload {
 
 class DataService {
   private getApiEndpoint(): string {
-    return import.meta.env.VITE_API_ENDPOINT || 'http://localhost:8000/email/send';
+    const baseURL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+    return import.meta.env.VITE_API_ENDPOINT || `${baseURL}/email/send`;
   }
 
   async sendEmail(payload: EmailPayload): Promise<EmailResponse> {

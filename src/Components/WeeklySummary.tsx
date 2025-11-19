@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { AUTH_HEADER } from '../constants/auth';
 import Summary, { type SummaryRef } from './Summary';
 import AlltimeInsights, { type AlltimeInsightsRef } from './AlltimeInsights';
 
@@ -96,9 +97,13 @@ const WeeklySummary: React.FC = () => {
       setError(null);
       
       try {
+        const baseURL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
         console.log('[WeeklySummary] Fetching insights/weekly...');
-        const response = await fetch('http://localhost:8000/insights/weekly', {
-          signal: abortController.signal
+        const response = await fetch(`${baseURL}/insights/weekly`, {
+          signal: abortController.signal,
+          headers: {
+            'Authorization': AUTH_HEADER
+          }
         });
         
         if (!response.ok) {

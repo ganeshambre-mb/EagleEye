@@ -8,6 +8,7 @@ import DataService from '../services/DataService';
 import type { EmailPayload } from '../services/DataService';
 import { useNotion } from '../context/NotionContext';
 import { EMAIL_BODY, EMAIL_SUBJECT, EMAIL_FILENAME } from '../constants/emailConstants';
+import { AUTH_HEADER } from '../constants/auth';
 import InsightsGrid from './InsightsGrid';
 
 interface Release {
@@ -35,14 +36,6 @@ const Releases: React.FC = () => {
   const [syncMessage, setSyncMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
-  
-  // Add Company/Category modal states
-  const [showAddCompanyModal, setShowAddCompanyModal] = useState(false);
-  const [showAddCategoryModal, setShowAddCategoryModal] = useState(false);
-  const [companyName, setCompanyName] = useState('');
-  const [companyReleaseUrl, setCompanyReleaseUrl] = useState('');
-  const [categoryName, setCategoryName] = useState('');
-  const [categoryDescription, setCategoryDescription] = useState('');
   const [isAnalyzing, setIsAnalyzing] = useState(false);
 
   // State for releases data
@@ -180,8 +173,13 @@ const Releases: React.FC = () => {
     setLoadError(null);
     
     try {
+      const baseURL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
       console.log('[Releases] Fetching features...');
-      const response = await fetch('http://localhost:8000/features?skip=0&limit=1000');
+      const response = await fetch(`${baseURL}/features?skip=0&limit=1000`, {
+        headers: {
+          'Authorization': AUTH_HEADER
+        }
+      });
       
       if (!response.ok) {
         throw new Error(`Failed to fetch: ${response.status} ${response.statusText}`);
@@ -247,28 +245,24 @@ const Releases: React.FC = () => {
     }
 
     setIsAnalyzing(true);
-    const baseURL = 'http://localhost:8000';
+    const baseURL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
     const toastId = toast.info('Starting analysis...', { autoClose: false });
 
     try {
-      // Get all unique company IDs from current releases
-      const companyIds = [...new Set(releases.map(r => r.id))];
-      
-      // If no companies, try to get first company from API
-      let targetCompanyId: number | null = null;
-      if (companyIds.length === 0) {
-        const companiesResponse = await fetch(`${baseURL}/companies?skip=0&limit=1`);
-        if (companiesResponse.ok) {
-          const companies = await companiesResponse.json();
-          if (companies.length > 0) {
-            targetCompanyId = companies[0].id;
-          }
+      // Get first company from API
+      const companiesResponse = await fetch(`${baseURL}/companies?skip=0&limit=1`, {
+        headers: {
+          'Authorization': AUTH_HEADER
         }
-      } else {
-        targetCompanyId = companyIds[0];
+      });
+      
+      if (!companiesResponse.ok) {
+        throw new Error('Failed to fetch companies');
       }
 
-      if (!targetCompanyId) {
+      const companies = await companiesResponse.json();
+      
+      if (companies.length === 0) {
         toast.update(toastId, {
           render: 'No companies found to analyze',
           type: 'error',
@@ -277,147 +271,28 @@ const Releases: React.FC = () => {
         return;
       }
 
-      // Step 1: Scrape and summarize
-      toast.update(toastId, { render: 'Fetching updates from sources...' });
-      const scrapeResponse = await fetch(
-        `${baseURL}/companies/${targetCompanyId}/scrape-and-summarize?force_crawl=false&use_langchain=false`,
+      const targetCompanyId = companies[0].id;
+
+      // Call process-company API
+      toast.update(toastId, { render: 'Processing company data...' });
+      const processResponse = await fetch(
+        `${baseURL}/process-company`,
         {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' }
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': AUTH_HEADER
+          },
+          body: JSON.stringify({
+            company_id: targetCompanyId.toString()
+          })
         }
       );
       
-      if (scrapeResponse.ok) {
-        console.log('✓ Step 1: Scrape and summarize completed');
-      }
-
-      // Step 2: Classify features
-      toast.update(toastId, { render: 'Categorizing new releases...' });
-      const classifyResponse = await fetch(
-        `${baseURL}/features/classify-direct?require_threshold=false`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({})
-        }
-      );
-      
-      if (classifyResponse.ok) {
-        console.log('✓ Step 2: Classification completed');
-      }
-
-      // Step 3: Build insights
-      toast.update(toastId, { render: 'Building insights and trends...' });
-      const anomaliesResponse = await fetch(`${baseURL}/analytics/anomalies-enhanced`);
-      
-      if (anomaliesResponse.ok) {
-        console.log('✓ Step 3: Insights completed');
-      }
-
-      // Success - refresh data
-      toast.update(toastId, {
-        render: 'Re-run successful! Refreshing data...',
-        type: 'success',
-        autoClose: 2000
-      });
-
-      await refreshReleases();
-      
-      toast.success('Analysis complete and data refreshed!');
-    } catch (error) {
-      console.error('[Releases] Re-run analysis error:', error);
-      toast.update(toastId, {
-        render: 'Analysis failed. Please try again.',
-        type: 'error',
-        autoClose: 5000
-      });
-    } finally {
-      setIsAnalyzing(false);
-    }
-  };
-
-  // Add company handler
-  const handleAddCompany = async () => {
-    if (!companyName.trim() || !companyReleaseUrl.trim()) {
-      toast.warning('Please provide both company name and release page URL');
-      return;
-    }
-
-    const baseURL = 'http://localhost:8000';
-
-    try {
-      console.log('[Releases] Creating company:', companyName);
-      
-      const response = await fetch(`${baseURL}/companies`, {
-        method: 'POST',
-        headers: {
-          'accept': 'application/json',
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          name: companyName,
-          homepage_url: companyReleaseUrl
-        })
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to create company');
-      }
-
-      const createdCompany = await response.json();
-      console.log('[Releases] Company created:', createdCompany);
-      
-      toast.success(`Company "${companyName}" added successfully!`);
-      
-      // Close modal and reset form
-      setShowAddCompanyModal(false);
-      setCompanyName('');
-      setCompanyReleaseUrl('');
-
-      // Trigger re-run analysis with the new company
-      toast.info('Triggering re-run analysis...');
-      setIsAnalyzing(true);
-      
-      const toastId = toast.info('Starting analysis...', { autoClose: false });
-
-      try {
-        // Step 1: Scrape and summarize
-        toast.update(toastId, { render: 'Fetching updates from sources...' });
-        const scrapeResponse = await fetch(
-          `${baseURL}/companies/${createdCompany.id}/scrape-and-summarize?force_crawl=false&use_langchain=false`,
-          {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' }
-          }
-        );
+      if (processResponse.ok) {
+        const processData = await processResponse.json();
+        console.log('✓ Company processing completed:', processData);
         
-        if (scrapeResponse.ok) {
-          console.log('✓ Step 1: Scrape and summarize completed');
-        }
-
-        // Step 2: Classify features
-        toast.update(toastId, { render: 'Categorizing new releases...' });
-        const classifyResponse = await fetch(
-          `${baseURL}/features/classify-direct?require_threshold=false`,
-          {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({})
-          }
-        );
-        
-        if (classifyResponse.ok) {
-          console.log('✓ Step 2: Classification completed');
-        }
-
-        // Step 3: Build insights
-        toast.update(toastId, { render: 'Building insights and trends...' });
-        const anomaliesResponse = await fetch(`${baseURL}/analytics/anomalies-enhanced`);
-        
-        if (anomaliesResponse.ok) {
-          console.log('✓ Step 3: Insights completed');
-        }
-
         // Success - refresh data
         toast.update(toastId, {
           render: 'Re-run successful! Refreshing data...',
@@ -428,64 +303,18 @@ const Releases: React.FC = () => {
         await refreshReleases();
         
         toast.success('Analysis complete and data refreshed!');
-      } catch (analysisError) {
-        console.error('[Releases] Analysis error:', analysisError);
-        toast.update(toastId, {
-          render: 'Analysis failed, but company was added.',
-          type: 'warning',
-          autoClose: 5000
-        });
-      } finally {
-        setIsAnalyzing(false);
+      } else {
+        throw new Error('Failed to process company');
       }
     } catch (error) {
-      console.error('[Releases] Error adding company:', error);
-      toast.error('Failed to add company. Please try again.');
-    }
-  };
-
-  // Add category handler
-  const handleAddCategory = async () => {
-    if (!categoryName.trim()) {
-      toast.warning('Please provide a category name');
-      return;
-    }
-
-    const baseURL = 'http://localhost:8000';
-
-    try {
-      console.log('[Releases] Creating category:', categoryName);
-      
-      // Build URL with query parameters
-      const url = new URL(`${baseURL}/categories`);
-      url.searchParams.append('name', categoryName);
-      if (categoryDescription.trim()) {
-        url.searchParams.append('description', categoryDescription);
-      }
-
-      const response = await fetch(url.toString(), {
-        method: 'POST',
-        headers: {
-          'accept': 'application/json',
-        }
+      console.error('[Releases] Re-run analysis error:', error);
+      toast.update(toastId, {
+        render: 'Analysis failed. Please try again.',
+        type: 'error',
+        autoClose: 5000
       });
-
-      if (!response.ok) {
-        throw new Error('Failed to create category');
-      }
-
-      const createdCategory = await response.json();
-      console.log('[Releases] Category created:', createdCategory);
-      
-      toast.success(`Category "${categoryName}" added successfully!`);
-      
-      // Close modal and reset form
-      setShowAddCategoryModal(false);
-      setCategoryName('');
-      setCategoryDescription('');
-    } catch (error) {
-      console.error('[Releases] Error adding category:', error);
-      toast.error('Failed to add category. Please try again.');
+    } finally {
+      setIsAnalyzing(false);
     }
   };
 
@@ -884,7 +713,7 @@ const Releases: React.FC = () => {
         <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
           <button 
             className="inline-action-button"
-            onClick={() => setShowAddCompanyModal(true)}
+            onClick={() => navigate('/onboarding?step=1')}
             disabled={isAnalyzing}
           >
             <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
@@ -894,7 +723,7 @@ const Releases: React.FC = () => {
           </button>
           <button 
             className="inline-action-button"
-            onClick={() => setShowAddCategoryModal(true)}
+            onClick={() => navigate('/onboarding?step=2')}
           >
             <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
               <path d="M8 3V13M3 8H13" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
@@ -1163,126 +992,6 @@ const Releases: React.FC = () => {
           )}
         </div>
       </div>
-
-      {/* Add Company Modal */}
-      {showAddCompanyModal && (
-        <div className="email-modal-overlay" onClick={() => setShowAddCompanyModal(false)}>
-          <div className="email-modal-content" onClick={(e) => e.stopPropagation()}>
-            <div className="email-modal-header">
-              <h3>Add Company</h3>
-              <button className="email-modal-close" onClick={() => setShowAddCompanyModal(false)}>
-                <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-                  <path d="M15 5L5 15M5 5L15 15" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
-                </svg>
-              </button>
-            </div>
-            <div className="email-modal-body">
-              <div className="email-modal-field">
-                <label htmlFor="company-name-input" className="email-modal-label">
-                  Company Name:
-                </label>
-                <input
-                  id="company-name-input"
-                  type="text"
-                  className="email-modal-input"
-                  placeholder="e.g., Zenoti"
-                  value={companyName}
-                  onChange={(e) => setCompanyName(e.target.value)}
-                  disabled={isAnalyzing}
-                />
-              </div>
-              <div className="email-modal-field">
-                <label htmlFor="company-url-input" className="email-modal-label">
-                  Release Page URL:
-                </label>
-                <input
-                  id="company-url-input"
-                  type="text"
-                  className="email-modal-input"
-                  placeholder="https://example.com/releases"
-                  value={companyReleaseUrl}
-                  onChange={(e) => setCompanyReleaseUrl(e.target.value)}
-                  disabled={isAnalyzing}
-                />
-              </div>
-            </div>
-            <div className="email-modal-footer">
-              <button
-                className="email-modal-cancel"
-                onClick={() => setShowAddCompanyModal(false)}
-                disabled={isAnalyzing}
-              >
-                Cancel
-              </button>
-              <button
-                className="email-modal-send"
-                onClick={handleAddCompany}
-                disabled={isAnalyzing}
-              >
-                {isAnalyzing ? 'Adding...' : 'Add Company'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Add Category Modal */}
-      {showAddCategoryModal && (
-        <div className="email-modal-overlay" onClick={() => setShowAddCategoryModal(false)}>
-          <div className="email-modal-content" onClick={(e) => e.stopPropagation()}>
-            <div className="email-modal-header">
-              <h3>Add Category</h3>
-              <button className="email-modal-close" onClick={() => setShowAddCategoryModal(false)}>
-                <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-                  <path d="M15 5L5 15M5 5L15 15" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
-                </svg>
-              </button>
-            </div>
-            <div className="email-modal-body">
-              <div className="email-modal-field">
-                <label htmlFor="category-name-input" className="email-modal-label">
-                  Category Name:
-                </label>
-                <input
-                  id="category-name-input"
-                  type="text"
-                  className="email-modal-input"
-                  placeholder="e.g., Analytics"
-                  value={categoryName}
-                  onChange={(e) => setCategoryName(e.target.value)}
-                />
-              </div>
-              <div className="email-modal-field">
-                <label htmlFor="category-desc-input" className="email-modal-label">
-                  Description:
-                </label>
-                <input
-                  id="category-desc-input"
-                  type="text"
-                  className="email-modal-input"
-                  placeholder="Optional description"
-                  value={categoryDescription}
-                  onChange={(e) => setCategoryDescription(e.target.value)}
-                />
-              </div>
-            </div>
-            <div className="email-modal-footer">
-              <button
-                className="email-modal-cancel"
-                onClick={() => setShowAddCategoryModal(false)}
-              >
-                Cancel
-              </button>
-              <button
-                className="email-modal-send"
-                onClick={handleAddCategory}
-              >
-                Add Category
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Email Modal */}
       {showEmailModal && (

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { motion } from 'motion/react';
 import { Radio, Check } from 'lucide-react';
+import { AUTH_HEADER } from '../constants/auth';
 import './LoadingAnalysis.css';
 
 interface LoadingAnalysisProps {
@@ -29,7 +30,7 @@ export function LoadingAnalysis({ companyId, onComplete }: LoadingAnalysisProps)
     let progressInterval: ReturnType<typeof setInterval> | null = null;
 
     const runAnalysis = async () => {
-      const baseURL = 'http://localhost:8000';
+      const baseURL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
       
       try {
         // Start progress bar animation
@@ -64,6 +65,7 @@ export function LoadingAnalysis({ companyId, onComplete }: LoadingAnalysisProps)
               method: 'POST',
               headers: {
                 'Content-Type': 'application/json',
+                'Authorization': AUTH_HEADER
               },
               body: JSON.stringify({
                 company_id: '15'

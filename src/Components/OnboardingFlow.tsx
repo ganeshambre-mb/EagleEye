@@ -6,10 +6,12 @@ import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { Progress } from './ui/progress';
 import { LoadingAnalysis } from './LoadingAnalysis';
+import { AUTH_HEADER } from '../constants/auth';
 import './OnboardingFlow.css';
 
 interface OnboardingFlowProps {
   onComplete: () => void;
+  initialStep?: number;
 }
 
 interface Competitor {
@@ -21,13 +23,15 @@ interface Competitor {
 interface Category {
   id: string;
   name: string;
+  description?: string;
 }
 
 interface CompanyAPIResponse {
   id?: number | string;
   name?: string;
-  release_page_url?: string;
-  releaseUrl?: string;
+  homepage_url?: string;
+  release_url?: string;  // Add snake_case variant
+  releaseUrl?: string;   // camelCase variant
   changelog_url?: string;
 }
 
@@ -35,16 +39,20 @@ interface CategoryAPIResponse {
   id?: number | string;
   name?: string;
   description?: string;
+  is_active?: boolean;
 }
 
-export function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
-  const [step, setStep] = useState(1);
+export function OnboardingFlow({ onComplete, initialStep = 1 }: OnboardingFlowProps) {
+  const [step, setStep] = useState(initialStep);
   const [companyName, setCompanyName] = useState('Mindbody Inc');
   const [competitors, setCompetitors] = useState<Competitor[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [selectedCompanyId, setSelectedCompanyId] = useState<string | null>(null);
+  const [initialCompetitorCount, setInitialCompetitorCount] = useState(0);
+  const [initialCategoryCount, setInitialCategoryCount] = useState(0);
+  const [originalCategories, setOriginalCategories] = useState<Category[]>([]);
 
   const totalSteps = 3;
   const progress = (step / totalSteps) * 100;
@@ -55,22 +63,37 @@ export function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
       try {
         setLoading(true);
         
+        const baseURL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+        
         // Fetch companies
-        const companiesResponse = await fetch('http://localhost:8000/companies?skip=0&limit=100');
+        const companiesResponse = await fetch(`${baseURL}/companies?skip=0&limit=100`, {
+          headers: {
+            'Authorization': AUTH_HEADER
+          }
+        });
         const companiesData = await companiesResponse.json();
+        console.log('[OnboardingFlow] Fetched companies:', companiesData);
         
         // Map companies to competitors format
-        const mappedCompetitors = (companiesData as CompanyAPIResponse[]).map((company) => ({
-          id: company.id?.toString() || Date.now().toString(),
-          name: company.name || '',
-          releaseUrl: company.release_page_url || company.releaseUrl || company.changelog_url || ''
-        }));
+        const mappedCompetitors = (companiesData as CompanyAPIResponse[]).map((company) => {
+          console.log('[OnboardingFlow] Mapping company:', company);
+          return {
+            id: company.id?.toString() || Date.now().toString(),
+            name: company.name || '',
+            releaseUrl: company.homepage_url || company.release_url || company.releaseUrl || company.changelog_url || ''
+          };
+        });
         
         // Only set competitors if we got data from API, otherwise start with empty
         setCompetitors(mappedCompetitors.length > 0 ? mappedCompetitors : []);
+        setInitialCompetitorCount(mappedCompetitors.length > 0 ? mappedCompetitors.length : 0);
 
         // Fetch categories
-        const categoriesResponse = await fetch('http://localhost:8000/categories');
+        const categoriesResponse = await fetch(`${baseURL}/categories`, {
+          headers: {
+            'Authorization': AUTH_HEADER
+          }
+        });
         const categoriesData = await categoriesResponse.json();
         
         // Handle both response formats: array or {categories: array}
@@ -81,10 +104,16 @@ export function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
         // Map categories
         const mappedCategories = (categoriesArray as CategoryAPIResponse[]).map((category) => ({
           id: category.id?.toString() || Date.now().toString(),
-          name: category.name || ''
+          name: category.name || '',
+          description: category.description || ''
         }));
         
         setCategories(mappedCategories.length > 0 ? mappedCategories : [
+          { id: '1', name: 'Appointments' },
+          { id: '2', name: 'Analytics' }
+        ]);
+        setInitialCategoryCount(mappedCategories.length > 0 ? mappedCategories.length : 2);
+        setOriginalCategories(mappedCategories.length > 0 ? [...mappedCategories] : [
           { id: '1', name: 'Appointments' },
           { id: '2', name: 'Analytics' }
         ]);
@@ -120,7 +149,34 @@ export function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
     setCategories([...categories, { id: `new_${Date.now()}`, name: '' }]);
   };
 
-  const removeCategory = (id: string) => {
+  const removeCategory = async (id: string) => {
+    // If it's an existing category (from API), delete it
+    if (!id.startsWith('new_')) {
+      const baseURL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+      try {
+        console.log('[OnboardingFlow] Deleting category:', id);
+        const response = await fetch(`${baseURL}/categories/${id}`, {
+          method: 'DELETE',
+          headers: {
+            'Authorization': AUTH_HEADER
+          }
+        });
+        
+        if (response.ok) {
+          console.log('[OnboardingFlow] Category deleted successfully');
+        } else {
+          console.error('[OnboardingFlow] Failed to delete category:', response.status);
+          alert('Failed to delete category. Please try again.');
+          return;
+        }
+      } catch (error) {
+        console.error('[OnboardingFlow] Error deleting category:', error);
+        alert('An error occurred while deleting category.');
+        return;
+      }
+    }
+    
+    // Remove from state
     setCategories(categories.filter(c => c.id !== id));
   };
 
@@ -131,7 +187,7 @@ export function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
   };
 
   const handleStartAnalysis = async () => {
-    const baseURL = 'http://localhost:8000';
+    const baseURL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
     
     try {
       // Check if there are any competitors at all
@@ -154,24 +210,29 @@ export function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
           return;
         }
         
+        const payload = {
+          name: firstNew.name,
+          homepage_url: firstNew.releaseUrl
+        };
+        console.log('[OnboardingFlow] Creating company with payload:', payload);
+        
         const response = await fetch(`${baseURL}/companies`, {
           method: 'POST',
           headers: {
             'accept': 'application/json',
             'Content-Type': 'application/json',
+            'Authorization': AUTH_HEADER
           },
-          body: JSON.stringify({
-            name: firstNew.name,
-            homepage_url: firstNew.releaseUrl
-          })
+          body: JSON.stringify(payload)
         });
 
         if (response.ok) {
           const createdCompany = await response.json();
-          console.log('Company created:', createdCompany);
+          console.log('[OnboardingFlow] Company created response:', createdCompany);
           setSelectedCompanyId(createdCompany.id?.toString() || null);
         } else {
-          console.error('Failed to create company');
+          const errorText = await response.text();
+          console.error('[OnboardingFlow] Failed to create company:', response.status, errorText);
           // Fallback to first existing company (from API)
           const existingCompany = competitors.find(c => !c.id.startsWith('new_'));
           if (existingCompany) {
@@ -185,6 +246,101 @@ export function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
         // Use the first existing company from prefilled data
         const firstCompany = competitors[0];
         setSelectedCompanyId(firstCompany.id);
+      }
+
+      // Update modified existing categories
+      const existingCategories = categories.filter(c => !c.id.startsWith('new_'));
+      const modifiedCategories = existingCategories.filter(category => {
+        const original = originalCategories.find(o => o.id === category.id);
+        return original && original.name !== category.name;
+      });
+
+      if (modifiedCategories.length > 0) {
+        console.log('[OnboardingFlow] Updating modified categories:', modifiedCategories);
+        
+        for (const category of modifiedCategories) {
+          if (!category.name.trim()) {
+            console.warn('[OnboardingFlow] Skipping category with empty name');
+            continue;
+          }
+          
+          try {
+            const url = new URL(`${baseURL}/categories/${category.id}`);
+            url.searchParams.append('name', category.name);
+            // Don't send description or is_active since we're not managing those in UI
+            
+            console.log('[OnboardingFlow] Updating category:', category.id, category.name);
+            const response = await fetch(url.toString(), {
+              method: 'PUT',
+              headers: {
+                'accept': 'application/json',
+                'Authorization': AUTH_HEADER
+              }
+            });
+            
+            if (response.ok) {
+              const updatedCategory = await response.json();
+              console.log('[OnboardingFlow] Category updated:', updatedCategory);
+              
+              // Update originalCategories to reflect the new state
+              setOriginalCategories(prev => 
+                prev.map(c => c.id === category.id ? { ...c, name: category.name } : c)
+              );
+            } else {
+              const errorText = await response.text();
+              console.error('[OnboardingFlow] Failed to update category:', response.status, errorText);
+            }
+          } catch (error) {
+            console.error('[OnboardingFlow] Error updating category:', error);
+          }
+        }
+      }
+
+      // Create new categories before starting analysis
+      const newCategories = categories.filter(c => c.id.startsWith('new_'));
+      if (newCategories.length > 0) {
+        console.log('[OnboardingFlow] Creating new categories:', newCategories);
+        
+        for (const category of newCategories) {
+          if (!category.name.trim()) {
+            console.warn('[OnboardingFlow] Skipping category with empty name');
+            continue;
+          }
+          
+          try {
+            const url = new URL(`${baseURL}/categories`);
+            url.searchParams.append('name', category.name);
+            if (category.description && category.description.trim()) {
+              url.searchParams.append('description', category.description);
+            }
+            
+            console.log('[OnboardingFlow] Creating category:', category.name);
+            const response = await fetch(url.toString(), {
+              method: 'POST',
+              headers: {
+                'accept': 'application/json',
+                'Authorization': AUTH_HEADER
+              }
+            });
+            
+            if (response.ok) {
+              const createdCategory = await response.json();
+              console.log('[OnboardingFlow] Category created:', createdCategory);
+              
+              // Update originalCategories to include the newly created category
+              setOriginalCategories(prev => [...prev, {
+                id: createdCategory.id?.toString() || category.id,
+                name: createdCategory.name || category.name,
+                description: createdCategory.description
+              }]);
+            } else {
+              const errorText = await response.text();
+              console.error('[OnboardingFlow] Failed to create category:', response.status, errorText);
+            }
+          } catch (error) {
+            console.error('[OnboardingFlow] Error creating category:', error);
+          }
+        }
       }
 
       // Start the analysis flow
@@ -350,7 +506,7 @@ export function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
                               />
                             </div>
                           </div>
-                          {competitors.length > 1 && (
+                          {competitor.id.startsWith('new_') && (
                             <Button
                               variant="outline"
                               size="icon"
@@ -366,10 +522,16 @@ export function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
                         variant="outline"
                         className="add-button"
                         onClick={addCompetitor}
+                        disabled={competitors.length > initialCompetitorCount}
                       >
                         <Plus className="icon-sm" />
                         Add Competitor
                       </Button>
+                      {competitors.length > initialCompetitorCount && (
+                        <p className="info-text" style={{ fontSize: '0.875rem', color: '#6B7280', marginTop: '8px' }}>
+                          You can add one new competitor at a time. Save this one or remove it to add another.
+                        </p>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -423,7 +585,7 @@ export function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
                           onChange={(e) => updateCategory(category.id, e.target.value)}
                         />
                       </div>
-                      {categories.length > 1 && (
+                      {category.id.startsWith('new_') && (
                         <Button
                           variant="outline"
                           size="icon"
@@ -439,10 +601,16 @@ export function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
                     variant="outline"
                     className="add-button"
                     onClick={addCategory}
+                    disabled={categories.length > initialCategoryCount}
                   >
                     <Plus className="icon-sm" />
                     Add Category
                   </Button>
+                  {categories.length > initialCategoryCount && (
+                    <p className="info-text" style={{ fontSize: '0.875rem', color: '#6B7280', marginTop: '8px' }}>
+                      You can add one new category at a time. Save this one or remove it to add another.
+                    </p>
+                  )}
                 </div>
               </div>
 

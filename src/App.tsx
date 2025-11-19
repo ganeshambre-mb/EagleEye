@@ -1,4 +1,4 @@
-import { BrowserRouter as Router, Routes, Route, useNavigate } from 'react-router-dom'
+import { BrowserRouter as Router, Routes, Route, useNavigate, useSearchParams } from 'react-router-dom'
 import LandingPage from './Components/LandingPage'
 import Login from './Components/Login'
 import ConnectToNotion from './Components/ConnectToNotion'
@@ -9,12 +9,16 @@ import './App.css'
 
 function OnboardingWrapper() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   
   const handleComplete = () => {
     navigate('/dashboard');
   };
 
-  return <OnboardingFlow onComplete={handleComplete} />;
+  // Get initial step from URL params (default to 1)
+  const initialStep = parseInt(searchParams.get('step') || '1', 10);
+
+  return <OnboardingFlow onComplete={handleComplete} initialStep={initialStep} />;
 }
 
 function App() {

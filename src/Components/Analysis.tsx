@@ -1,5 +1,6 @@
 import React, { useRef, useEffect, useState } from 'react';
 import { LineChart, Line, BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import { AUTH_HEADER } from '../constants/auth';
 import InsightsGrid from './InsightsGrid';
 
 interface InsightsData {
@@ -158,12 +159,23 @@ const Analysis: React.FC = () => {
     
     const fetchData = async () => {
       try {
+        const baseURL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
         console.log('[Analysis] Fetching data from APIs...');
         
         // Fetch all APIs in parallel
         const [insightsResponse, overviewResponse] = await Promise.all([
-          fetch('http://localhost:8000/insights/latest', { signal: abortController.signal }),
-          fetch('http://localhost:8000/analytics/overview', { signal: abortController.signal })
+          fetch(`${baseURL}/insights/latest`, { 
+            signal: abortController.signal,
+            headers: {
+              'Authorization': AUTH_HEADER
+            }
+          }),
+          fetch(`${baseURL}/analytics/overview`, { 
+            signal: abortController.signal,
+            headers: {
+              'Authorization': AUTH_HEADER
+            }
+          })
         ]);
         
         // Handle insights response

@@ -1,4 +1,5 @@
 import { useRef, forwardRef, useImperativeHandle, useState, useEffect } from 'react';
+import { AUTH_HEADER } from '../constants/auth';
 
 export type SummaryRef = {
   downloadPDF: () => Promise<void>;
@@ -146,10 +147,14 @@ const Summary = forwardRef<SummaryRef, SummaryProps>(({ insights, isLoading, err
       setWeeklyReleasesError(null);
       
       try {
+        const baseURL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
         // Fetch recent features and group by company
         console.log('[Summary] Fetching features...');
-        const response = await fetch('http://localhost:8000/features', {
-          signal: abortController.signal
+        const response = await fetch(`${baseURL}/features`, {
+          signal: abortController.signal,
+          headers: {
+            'Authorization': AUTH_HEADER
+          }
         });
         
         if (!response.ok) {

@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { AUTH_HEADER } from '../constants/auth';
 
 interface InsightsData {
   id: number;
@@ -101,11 +102,15 @@ const InsightsGrid: React.FC = () => {
       setError(null);
       
       try {
+        const baseURL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
         console.log('[InsightsGrid] Fetching data from APIs...');
         
         // Fetch insights API
-        const insightsResponse = await fetch('http://localhost:8000/insights/latest', { 
-          signal: abortController.signal 
+        const insightsResponse = await fetch(`${baseURL}/insights/latest`, { 
+          signal: abortController.signal,
+          headers: {
+            'Authorization': AUTH_HEADER
+          }
         });
         
         if (!insightsResponse.ok) {
