@@ -492,6 +492,32 @@
   border: 1px solid #99f6e4;
 }
 
+.info-section {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  background-color: #eff6ff;
+  border: 1px solid #bfdbfe;
+  border-radius: 0.75rem;
+  padding: 1rem 1.25rem;
+  margin-top: 0.5rem;
+}
+
+.info-icon {
+  width: 1.25rem;
+  height: 1.25rem;
+  color: #3b82f6;
+  flex-shrink: 0;
+  margin-top: 0.125rem;
+}
+
+.info-section .info-text {
+  color: #1e40af;
+  font-size: 0.875rem;
+  line-height: 1.5;
+  margin: 0;
+}
+
 /* Step Actions */
 .step-actions {
   display: flex;

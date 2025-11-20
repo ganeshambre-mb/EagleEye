@@ -1,13 +1,13 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Radio, Plus, X, ArrowRight, ArrowLeft, CheckCircle2, Tag } from 'lucide-react';
+import { Radio, Plus, X, ArrowRight, ArrowLeft, CheckCircle2, Tag, Info } from 'lucide-react';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { Progress } from './ui/progress';
-import { LoadingAnalysis } from './LoadingAnalysis';
 import { AUTH_HEADER } from '../constants/auth';
 import './OnboardingFlow.css';
+import { useNavigate } from 'react-router-dom';
 
 interface OnboardingFlowProps {
   onComplete: () => void;
@@ -43,13 +43,12 @@ interface CategoryAPIResponse {
 }
 
 export function OnboardingFlow({ onComplete, initialStep = 1 }: OnboardingFlowProps) {
+  const navigate = useNavigate();
   const [step, setStep] = useState(initialStep);
   const [companyName, setCompanyName] = useState('Mindbody Inc');
   const [competitors, setCompetitors] = useState<Competitor[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
-  const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const [selectedCompanyId, setSelectedCompanyId] = useState<string | null>(null);
   const [initialCompetitorCount, setInitialCompetitorCount] = useState(0);
   const [initialCategoryCount, setInitialCategoryCount] = useState(0);
   const [originalCategories, setOriginalCategories] = useState<Category[]>([]);
@@ -229,23 +228,13 @@ export function OnboardingFlow({ onComplete, initialStep = 1 }: OnboardingFlowPr
         if (response.ok) {
           const createdCompany = await response.json();
           console.log('[OnboardingFlow] Company created response:', createdCompany);
-          setSelectedCompanyId(createdCompany.id?.toString() || null);
         } else {
           const errorText = await response.text();
           console.error('[OnboardingFlow] Failed to create company:', response.status, errorText);
-          // Fallback to first existing company (from API)
-          const existingCompany = competitors.find(c => !c.id.startsWith('new_'));
-          if (existingCompany) {
-            setSelectedCompanyId(existingCompany.id);
-          } else {
-            alert('Failed to create company. Please try again.');
-            return;
-          }
         }
       } else {
         // Use the first existing company from prefilled data
         const firstCompany = competitors[0];
-        setSelectedCompanyId(firstCompany.id);
       }
 
       // Update modified existing categories
@@ -343,8 +332,8 @@ export function OnboardingFlow({ onComplete, initialStep = 1 }: OnboardingFlowPr
         }
       }
 
-      // Start the analysis flow
-      setIsAnalyzing(true);
+      // navigate to the homepage
+      navigate('/dashboard');
     } catch (error) {
       console.error('Error in handleStartAnalysis:', error);
       alert('An error occurred while starting analysis. Please try again.');
@@ -384,72 +373,6 @@ export function OnboardingFlow({ onComplete, initialStep = 1 }: OnboardingFlowPr
 
       <div className="onboarding-container">
         <AnimatePresence mode="wait">
-          {/* Step 1: Connect Slack
-          {step === 1 && (
-            <motion.div
-              key="step1"
-              initial={{ opacity: 0, x: 20 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: -20 }}
-              transition={{ duration: 0.3 }}
-              className="onboarding-step"
-            >
-              <div className="step-header">
-                <div className="step-icon purple">
-                  <Slack className="icon" />
-                </div>
-                <h2 className="step-title">Connect to Slack</h2>
-                <p className="step-description">
-                  Get weekly competitive summaries delivered directly to your Slack workspace.
-                </p>
-              </div>
-
-              <div className="step-card">
-                {!slackConnected ? (
-                  <div className="slack-connect-section">
-                    <Button
-                      onClick={() => setSlackConnected(true)}
-                      className="slack-connect-button"
-                    >
-                      <Slack className="button-icon" />
-                      Connect Slack Workspace
-                    </Button>
-                    <p className="skip-text">
-                      You can skip this step and add it later in settings
-                    </p>
-                  </div>
-                ) : (
-                  <div className="slack-connected">
-                    <div className="slack-info">
-                      <div className="slack-logo">
-                        <Slack className="icon-white" />
-                      </div>
-                      <div className="slack-details">
-                        <p className="workspace-name">Mindbody Inc Workspace</p>
-                        <p className="channel-name">#competitive-intel</p>
-                      </div>
-                    </div>
-                    <CheckCircle2 className="check-icon" />
-                  </div>
-                )}
-              </div>
-
-              <div className="step-actions">
-                <Button variant="outline" onClick={() => setStep(2)}>
-                  Skip for now
-                </Button>
-                <Button 
-                  onClick={() => setStep(2)}
-                  disabled={!slackConnected}
-                  className="next-button"
-                >
-                  Next
-                  <ArrowRight className="button-icon-right" />
-                </Button>
-              </div>
-            </motion.div>
-          )} */}
-
           {/* Step 2: Define Competitors */}
           {step === 1 && (
             <motion.div
@@ -685,6 +608,11 @@ export function OnboardingFlow({ onComplete, initialStep = 1 }: OnboardingFlowPr
                       </div>
                     </div>
                   )}
+
+                  <div className="info-section">
+                    <Info className="info-icon" />
+                    <p className="info-text">Our process will be running in background. Homepage will be updated once analysis is complete.</p>
+                  </div>
                 </div>
               </div>
 
@@ -695,24 +623,16 @@ export function OnboardingFlow({ onComplete, initialStep = 1 }: OnboardingFlowPr
                 </Button>
                 <Button 
                   onClick={handleStartAnalysis}
-                  className="start-button"
+                  className="next-button"
                 >
-                  <CheckCircle2 className="button-icon-left" />
-                  Start Analysis
+                  Homepage
+                  <ArrowRight className="button-icon-right" />
                 </Button>
               </div>
             </motion.div>
           )}
         </AnimatePresence>
       </div>
-
-      {/* Loading Analysis Overlay */}
-      {isAnalyzing && selectedCompanyId && (
-        <LoadingAnalysis 
-          companyId={selectedCompanyId} 
-          onComplete={onComplete} 
-        />
-      )}
     </div>
   );
 }
