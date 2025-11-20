@@ -6,7 +6,6 @@ import { toast, ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import DataService from '../services/DataService';
 import type { EmailPayload } from '../services/DataService';
-import { useNotion } from '../context/NotionContext';
 import { EMAIL_BODY, EMAIL_SUBJECT, EMAIL_FILENAME } from '../constants/emailConstants';
 import { AUTH_HEADER } from '../constants/auth';
 import InsightsGrid from './InsightsGrid';
@@ -37,11 +36,11 @@ interface APIFeature {
   assigned_category_id?: number | null;
   category_confidence?: number | null;
   created_at: string;
+  synced_to_notion: boolean;
 }
 
 const Releases: React.FC = () => {
   const navigate = useNavigate();
-  const { isConnected } = useNotion();
   const [searchQuery, setSearchQuery] = useState('');
   const [isSending, setIsSending] = useState(false);
   const [showEmailModal, setShowEmailModal] = useState(false);
@@ -49,7 +48,7 @@ const Releases: React.FC = () => {
   const tableContainerRef = useRef<HTMLDivElement>(null);
   const tableFooterRef = useRef<HTMLDivElement>(null);
   const [isSyncing, setIsSyncing] = useState(false);
-  const [syncMessage, setSyncMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
+  const [syncMessage, setSyncMessage] = useState<{ type: 'success' | 'error' | 'info', text: string } | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
@@ -323,13 +322,27 @@ const Releases: React.FC = () => {
     }
   };
 
-  const handleConnectNotion = async () => {
-    if (!isConnected) {
-      // Navigate to connect page if not connected
-      navigate('/connect-notion');
-      return;
+  // update sync status for features
+  const updateFeatureSyncStatus = async (featureIds: number[]) => {
+    try {
+      const baseURL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+      const response = await fetch(`${baseURL}/features/sync-to-notion`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ feature_ids: featureIds, synced_to_notion: true }),
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Failed to update sync status: ${response.status} ${response.statusText}`);
+      }
+    } catch (error) {
+      console.error('Error updating sync status:', error);
     }
+  };
 
+  const handleConnectNotion = async () => {
     // Sync releases to Notion if already connected
     setIsSyncing(true);
     setSyncMessage(null);
@@ -338,10 +351,20 @@ const Releases: React.FC = () => {
       console.log(`[Releases] Syncing ${originalApiData.length} features to Notion...`);
       console.log('[Releases] First feature data:', originalApiData[0]);
       
-      const payload = { releases: originalApiData };
+      const payload = { releases: originalApiData.filter((release) => release.synced_to_notion === false) };
       console.log('[Releases] Full payload being sent:', JSON.stringify(payload, null, 2));
       console.log('[Releases] Payload size:', JSON.stringify(payload).length, 'bytes');
       
+      if (payload.releases.length === 0) {
+        setSyncMessage({ 
+          type: 'info', 
+          text: 'All releases are already synced to Notion' 
+        });
+        setIsSyncing(false);
+        setTimeout(() => setSyncMessage(null), 5000);
+        return;
+      }
+
       // Get Notion API key from environment
       const notionApiKey = import.meta.env.VITE_NOTION_API_KEY || 
                           import.meta.env.VITE_NOTION_INTEGRATION_TOKEN || '';
@@ -362,7 +385,8 @@ const Releases: React.FC = () => {
       
       console.log('[Releases] Request headers:', headers);
       
-      const response = await fetch('http://localhost:8000/api/notion/sync-releases', {
+      const baseURL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+      const response = await fetch(`${baseURL}/api/notion/sync-releases`, {
         method: 'POST',
         headers: headers,
         body: JSON.stringify(payload),
@@ -387,6 +411,7 @@ const Releases: React.FC = () => {
 
       if (response.ok && data.success) {
         console.log('✅ Successfully synced to Notion:', data);
+        updateFeatureSyncStatus(payload.releases.map((release: any) => release.id));
         setSyncMessage({ 
           type: 'success', 
           text: data.message || `Successfully synced ${originalApiData.length} releases to Notion!` 
@@ -825,10 +850,16 @@ const Releases: React.FC = () => {
               <circle cx="10" cy="10" r="9" fill="#10b981" />
               <path d="M6 10L8.5 12.5L14 7" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
             </svg>
-          ) : (
+          ) : syncMessage.type === 'error' ? (
             <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
               <circle cx="10" cy="10" r="9" fill="#ef4444" />
               <path d="M7 7L13 13M7 13L13 7" stroke="white" strokeWidth="2" strokeLinecap="round" />
+            </svg>
+          ) : (
+            <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+              <circle cx="10" cy="10" r="9" fill="#3b82f6" />
+              <circle cx="10" cy="6" r="1" fill="white" />
+              <path d="M10 9V14" stroke="white" strokeWidth="2" strokeLinecap="round" />
             </svg>
           )}
           <span>{syncMessage.text}</span>
@@ -861,7 +892,7 @@ const Releases: React.FC = () => {
                 <rect x="2" y="2" width="12" height="12" rx="2" stroke="currentColor" strokeWidth="1.5"/>
                 <text x="8" y="11" fontSize="8" fontWeight="700" textAnchor="middle" fill="currentColor" fontFamily="system-ui">N</text>
               </svg>
-              {isConnected ? 'Sync Notion' : 'Connect Notion'}
+              {'Sync Notion'}
             </>
           )}
         </button>
