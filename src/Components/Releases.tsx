@@ -23,6 +23,22 @@ interface Release {
   date: string;
 }
 
+interface APIFeature {
+  id: number;
+  release_id: number;
+  name: string;
+  summary: string;
+  highlights?: string[];
+  category: string;
+  company_id: number;
+  company_name: string;
+  release_date: string;
+  version?: string | null;
+  assigned_category_id?: number | null;
+  category_confidence?: number | null;
+  created_at: string;
+}
+
 const Releases: React.FC = () => {
   const navigate = useNavigate();
   const { isConnected } = useNotion();
@@ -40,6 +56,8 @@ const Releases: React.FC = () => {
 
   // State for releases data
   const [releases, setReleases] = useState<Release[]>([]);
+  // Store original API data for syncing to external services
+  const [originalApiData, setOriginalApiData] = useState<APIFeature[]>([]);
   
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
@@ -188,23 +206,10 @@ const Releases: React.FC = () => {
       const data = await response.json();
       console.log('[Releases] Features data received:', data.length, 'items');
       
-      // Transform API data to match our Release interface
-      interface APIFeature {
-        id: number;
-        release_id: number;
-        name: string;
-        summary: string;
-        highlights?: string[];
-        category: string;
-        company_id: number;
-        company_name: string;
-        release_date: string;
-        version?: string | null;
-        assigned_category_id?: number | null;
-        category_confidence?: number | null;
-        created_at: string;
-      }
+      // Store original API data for syncing to external services
+      setOriginalApiData(data);
       
+      // Transform API data to match our Release interface
       const transformedReleases: Release[] = (data as APIFeature[]).map((item) => ({
         id: item.id,
         competitor: item.company_name,
@@ -330,33 +335,90 @@ const Releases: React.FC = () => {
     setSyncMessage(null);
 
     try {
-      const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
-      const response = await fetch(`${backendUrl}/api/notion/sync-releases`, {
+      console.log(`[Releases] Syncing ${originalApiData.length} features to Notion...`);
+      console.log('[Releases] First feature data:', originalApiData[0]);
+      
+      const payload = { releases: originalApiData };
+      console.log('[Releases] Full payload being sent:', JSON.stringify(payload, null, 2));
+      console.log('[Releases] Payload size:', JSON.stringify(payload).length, 'bytes');
+      
+      // Get Notion API key from environment
+      const notionApiKey = import.meta.env.VITE_NOTION_API_KEY || 
+                          import.meta.env.VITE_NOTION_INTEGRATION_TOKEN || '';
+      
+      console.log('[Releases] Notion API Key present:', notionApiKey ? 'YES' : 'NO');
+      
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+        'Authorization': AUTH_HEADER,
+      };
+      
+      // Add Notion API key if available
+      if (notionApiKey) {
+        headers['X-Notion-Key'] = notionApiKey;
+        headers['Notion-Api-Key'] = notionApiKey;
+        headers['x-notion-integration-token'] = notionApiKey;
+      }
+      
+      console.log('[Releases] Request headers:', headers);
+      
+      const response = await fetch('http://localhost:8000/api/notion/sync-releases', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ releases }),
+        headers: headers,
+        body: JSON.stringify(payload),
       });
 
-      const data = await response.json();
+      console.log('[Releases] Response status:', response.status, response.statusText);
+      console.log('[Releases] Response headers:', Object.fromEntries(response.headers.entries()));
+      
+      // Try to get response body
+      const responseText = await response.text();
+      console.log('[Releases] Response body (raw):', responseText);
+      
+      let data;
+      try {
+        data = JSON.parse(responseText);
+      } catch (e) {
+        console.error('[Releases] Failed to parse response as JSON:', e);
+        data = { error: 'Invalid JSON response', raw: responseText };
+      }
+      
+      console.log('[Releases] Sync response (parsed):', data);
 
       if (response.ok && data.success) {
         console.log('✅ Successfully synced to Notion:', data);
         setSyncMessage({ 
           type: 'success', 
-          text: data.message || `Successfully synced ${releases.length} releases to Notion!` 
+          text: data.message || `Successfully synced ${originalApiData.length} releases to Notion!` 
         });
         
         // Auto-hide success message after 5 seconds
         setTimeout(() => setSyncMessage(null), 5000);
       } else {
-        console.error('❌ Sync failed:', data);
-        console.error('Status code:', data.statusCode);
-        console.error('Details:', data.details);
+        console.error('❌ Sync failed with status:', response.status);
+        console.error('❌ Error data:', data);
+        console.error('❌ Full response:', {
+          status: response.status,
+          statusText: response.statusText,
+          data: data
+        });
+        
+        // For 422 errors, show the validation error details
+        let errorMessage = data.error || data.detail || 'Failed to sync to Notion';
+        if (response.status === 422 && data.detail) {
+          // FastAPI validation errors
+          if (Array.isArray(data.detail)) {
+            errorMessage = 'Validation Error: ' + data.detail.map((e: { loc?: string[]; msg?: string }) => 
+              `${e.loc?.join('.')} - ${e.msg}`
+            ).join(', ');
+          } else if (typeof data.detail === 'string') {
+            errorMessage = data.detail;
+          }
+        }
+        
         setSyncMessage({ 
           type: 'error', 
-          text: `${data.error || 'Failed to sync to Notion'}${data.statusCode ? ` (${data.statusCode})` : ''}` 
+          text: `${errorMessage} (Status: ${response.status})` 
         });
       }
     } catch (error) {
