@@ -1,75 +1,86 @@
-# React + TypeScript + Vite
+# EagleEye - Competitive Intelligence Dashboard
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+A React-based frontend application for tracking and analyzing competitor releases and features.
 
-Currently, two official plugins are available:
+## Features
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+- Real-time competitive analysis
+- Notion integration for automated syncing
+- Email reporting capabilities
+- Interactive dashboard with filtering and search
+- PDF export functionality
 
-## React Compiler
+## Frontend Stack
 
-The React Compiler is enabled on this template. See [this documentation](https://react.dev/learn/react-compiler) for more information.
+- **React 18** with TypeScript
+- **Vite** for fast development and building
+- **React Router** for navigation
+- **CSS Modules** for styling
 
-Note: This will impact Vite dev & build performances.
+## Setup Instructions
 
-## Expanding the ESLint configuration
+1. **Install Dependencies**
+   ```bash
+   npm install
+   ```
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+2. **Configure Environment**
+   Copy `.env.example` to `.env` and configure:
+   ```bash
+   cp .env.example .env
+   ```
+   
+   Update the `.env` file with your Notion credentials.
 
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
+3. **Start Development Server**
+   ```bash
+   npm run dev
+   ```
+   
+   The application will be available at `http://localhost:5174`
 
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
+## Environment Configuration
 
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+Required environment variables:
+
+- `VITE_NOTION_CLIENT_ID` - Your Notion OAuth client ID
+- `VITE_REDIRECT_URI` - OAuth redirect URI (usually `http://localhost:5174/connect-notion`)
+- `VITE_NOTION_API_KEY` - Your Notion integration API key
+
+## Building for Production
+
+```bash
+npm run build
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+The built files will be in the `dist` directory.
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+## Available Scripts
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+- `npm run dev` - Start development server
+- `npm run build` - Build for production
+- `npm run preview` - Preview production build
+- `npm run lint` - Run ESLint
+
+## Project Structure
+
 ```
+src/
+├── Components/          # React components
+├── context/            # React context providers
+├── services/           # API service functions
+├── constants/          # Application constants
+├── assets/            # Static assets
+└── App.tsx            # Main application component
+```
+
+## Notion Integration
+
+To set up Notion integration:
+
+1. Create a Notion integration at https://www.notion.so/my-integrations
+2. Configure OAuth settings with your redirect URI
+3. Add the client ID and API key to your `.env` file
+4. Create a Notion page where data will be synced
+
+For detailed setup instructions, see `NOTION_OAUTH_CHECKLIST.md`.
