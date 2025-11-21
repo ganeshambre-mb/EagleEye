@@ -350,12 +350,91 @@ const Releases: React.FC = () => {
     setIsSyncing(true);
     setSyncMessage(null);
 
+    // Use relative URL if in development with Vite proxy, otherwise use VITE_API_URL from .env
+    const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+    
+    console.log('[Releases] Environment check:', {
+      DEV: import.meta.env.DEV,
+      MODE: import.meta.env.MODE,
+      PROD: import.meta.env.PROD,
+      VITE_API_URL: import.meta.env.VITE_API_URL,
+      isLocalhost: window.location.hostname === 'localhost'
+    });
+    
+    // Determine if we're actually in development (localhost) or production (Vercel)
+    const isActuallyDev = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+    
+    // Try different endpoint variations
+    const possibleEndpoints = isActuallyDev 
+      ? ['/api/notion/sync-releases']
+      : [
+          `${apiUrl}/api/notion/sync-releases`,
+          `${apiUrl}/notion/sync-releases`, 
+          `${apiUrl}/sync-releases`,
+          `${apiUrl}/api/sync-releases`,
+          `${apiUrl}/notion/sync`
+        ];
+    
+    let syncUrl = possibleEndpoints[0];
+    
+    console.log('[Releases] Is actually dev?', isActuallyDev);
+    console.log('[Releases] Possible endpoints:', possibleEndpoints);
+    
+    // In production, try to find working endpoint
+    if (!isActuallyDev && possibleEndpoints.length > 1) {
+      console.log('[Releases] Testing multiple endpoints to find working one...');
+      for (const testUrl of possibleEndpoints) {
+        try {
+          const testResponse = await fetch(testUrl, { 
+            method: 'OPTIONS',
+            headers: { 'Authorization': AUTH_HEADER }
+          });
+          console.log(`[Releases] Testing ${testUrl}:`, testResponse.status);
+          
+          if (testResponse.ok || testResponse.status === 405) {
+            // 405 means endpoint exists but might need POST instead of OPTIONS
+            if (testResponse.status !== 405) {
+              syncUrl = testUrl;
+              console.log(`[Releases] Found working endpoint: ${syncUrl}`);
+              break;
+            } else {
+              // Try with POST to see if it works
+              const postTest = await fetch(testUrl, {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'Authorization': AUTH_HEADER
+                },
+                body: JSON.stringify({ test: true })
+              });
+              if (postTest.status !== 405) {
+                syncUrl = testUrl;
+                console.log(`[Releases] Found working POST endpoint: ${syncUrl}`);
+                break;
+              }
+            }
+          }
+        } catch (e) {
+          console.log(`[Releases] ${testUrl} failed:`, e);
+        }
+      }
+    }
+
     try {
       console.log('[Releases] Calling Notion sync API...');
+      console.log('[Releases] Final selected sync URL:', syncUrl);
       
-      // Use relative URL if in development with Vite proxy, otherwise use full URL  
-      const syncUrl = import.meta.env.DEV ? '/api/notion/sync-releases' : 'http://localhost:8000/api/notion/sync-releases';
-      console.log('[Releases] Sync URL:', syncUrl);
+      // Test API connectivity in production  
+      if (!isActuallyDev) {
+        console.log('[Releases] Testing API base connectivity...');
+        try {
+          const healthUrl = `${apiUrl}/health`;
+          const healthResponse = await fetch(healthUrl, { method: 'GET' });
+          console.log('[Releases] Health check response:', healthResponse.status);
+        } catch (healthError) {
+          console.error('[Releases] Health check failed:', healthError);
+        }
+      }
       
       const response = await fetch(syncUrl, {
         method: 'POST',
@@ -421,9 +500,14 @@ const Releases: React.FC = () => {
           data: data
         });
         
-        // For 422 errors, show the validation error details
+        // Handle specific HTTP errors
         let errorMessage = data.error || data.detail || 'Failed to sync to Notion';
-        if (response.status === 422 && data.detail) {
+        
+        if (response.status === 405) {
+          errorMessage = `Method Not Allowed: The endpoint ${syncUrl} doesn't support POST requests. Check if the correct API endpoint exists or try different endpoints like: /notion/sync, /sync-releases, /api/sync-releases`;
+        } else if (response.status === 404) {
+          errorMessage = `Endpoint not found: ${syncUrl} doesn't exist. Check the API documentation for the correct notion sync endpoint.`;
+        } else if (response.status === 422 && data.detail) {
           // FastAPI validation errors
           if (Array.isArray(data.detail)) {
             errorMessage = 'Validation Error: ' + data.detail.map((e: { loc?: string[]; msg?: string }) => 
@@ -441,9 +525,36 @@ const Releases: React.FC = () => {
       }
     } catch (error) {
       console.error('❌ Network error:', error);
+      console.error('[Releases] Environment details:', {
+        DEV: import.meta.env.DEV,
+        VITE_API_URL: import.meta.env.VITE_API_URL,
+        syncUrl,
+        origin: window.location.origin,
+        userAgent: navigator.userAgent.includes('Vercel') ? 'Vercel' : 'Local'
+      });
+      
+      let errorMessage = 'Network error. ';
+      
+      // Check for specific error types
+      if (error instanceof TypeError) {
+        if (error.message.includes('fetch') || error.message.includes('CORS') || error.message.includes('cross-origin')) {
+          if (isActuallyDev) {
+            errorMessage = 'Cannot connect to local backend. Make sure API server is running on localhost:8000.';
+          } else {
+            errorMessage = `CORS Error: Your staging API server at ${import.meta.env.VITE_API_URL} needs to allow requests from ${window.location.origin}. Please configure CORS headers: Access-Control-Allow-Origin, Access-Control-Allow-Methods (POST), Access-Control-Allow-Headers (Content-Type, Authorization).`;
+          }
+        } else if (error.message.includes('Failed to fetch')) {
+          errorMessage += `Cannot reach ${syncUrl}. Check if the API endpoint exists and is accessible.`;
+        } else {
+          errorMessage += error.message;
+        }
+      } else {
+        errorMessage += 'Make sure backend is running.';
+      }
+      
       setSyncMessage({ 
         type: 'error', 
-        text: 'Network error. Make sure backend is running.' 
+        text: errorMessage
       });
     } finally {
       setIsSyncing(false);
