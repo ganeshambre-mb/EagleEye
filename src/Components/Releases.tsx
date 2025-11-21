@@ -870,7 +870,7 @@ const Releases: React.FC = () => {
             </svg>
             Add Category
           </button>
-          <button 
+          {/*<button 
             className="rerun-button"
             onClick={handleRerunAnalysis}
             disabled={isAnalyzing}
@@ -891,7 +891,7 @@ const Releases: React.FC = () => {
                 Re-run Analysis
               </>
             )}
-          </button>
+          </button>*/}
         </div>
       </div>
 
@@ -921,12 +921,12 @@ const Releases: React.FC = () => {
 
       {/* Action Buttons */}
       <div className="action-buttons">
-        <button className="action-btn primary-btn">
+        {/*<button className="action-btn primary-btn">
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
             <path d="M8 3V13M3 8H13" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
           </svg>
           Add Manually
-        </button>
+        </button>*/}
         <button 
           className="action-btn secondary-btn" 
           onClick={handleConnectNotion}
