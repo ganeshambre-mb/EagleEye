@@ -1,7 +1,6 @@
 import React, { useRef, useEffect, useState } from 'react';
 import { LineChart, Line, BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { AUTH_HEADER } from '../constants/auth';
-import InsightsGrid from './InsightsGrid';
 
 interface InsightsData {
   id: number;
@@ -333,17 +332,6 @@ const Analysis: React.FC = () => {
           Download PDF
         </button>
       </div>
-
-      <div className="section-header" style={{ marginBottom: '24px', textAlign: 'left' }}>
-        <h3 style={{ fontSize: '1.25rem', fontWeight: '600', color: '#1a1a1a', marginBottom: '8px', textAlign: 'left' }}>
-          Key Insights
-        </h3>
-        <p style={{ fontSize: '0.875rem', color: '#6b7280', textAlign: 'left' }}>
-          Real-time competitive intelligence and market trends
-        </p>
-      </div>
-
-      <InsightsGrid />
 
       {/* Charts Section */}
       <div className="charts-section">
