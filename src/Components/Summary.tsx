@@ -17,6 +17,19 @@ interface WeeklyRelease {
   company_name: string;
 }
 
+// Type for API feature response (can be WeeklyRelease or APIFeature format)
+type FeatureResponse = WeeklyRelease | {
+  id: number;
+  name?: string;
+  summary?: string;
+  category?: string;
+  version?: string | null;
+  release_date?: string;
+  highlights?: string[];
+  company_id?: number;
+  company_name?: string;
+};
+
 interface CompanyData {
   company: {
     id: number;
@@ -150,7 +163,7 @@ const Summary = forwardRef<SummaryRef, SummaryProps>(({ insights, isLoading, err
         const baseURL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
         // Fetch recent features and group by company
         console.log('[Summary] Fetching features...');
-        const response = await fetch(`${baseURL}/features`, {
+        const response = await fetch(`${baseURL}/features?skip=0&limit=1000`, {
           signal: abortController.signal,
           headers: {
             'Authorization': AUTH_HEADER
@@ -161,27 +174,95 @@ const Summary = forwardRef<SummaryRef, SummaryProps>(({ insights, isLoading, err
           throw new Error(`Failed to fetch: ${response.status} ${response.statusText}`);
         }
         
-        const features = await response.json();
-        console.log('[Summary] Features data received:', features);
+        const responseData = await response.json();
+        console.log('[Summary] Features data received:', responseData);
         
-        // Get features from the last 7 days
-        const oneWeekAgo = new Date();
-        oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
+        // Handle different response formats (array or object with data property)
+        const features = Array.isArray(responseData) ? responseData : (responseData.data || responseData.features || []);
         
-        const weeklyFeatures = features.filter((feature: WeeklyRelease) => {
-          const releaseDate = new Date(feature.release_date);
-          return releaseDate >= oneWeekAgo;
+        if (!Array.isArray(features)) {
+          console.error('[Summary] Invalid features data format:', features);
+          throw new Error('Invalid features data format received from API');
+        }
+        
+        console.log('[Summary] Processing', features.length, 'features');
+        
+        // Calculate current week boundaries (Monday to Sunday)
+        const today = new Date();
+        today.setHours(23, 59, 59, 999); // End of today
+        
+        // Get the start of the current week (Monday)
+        const currentWeekStart = new Date(today);
+        const dayOfWeek = currentWeekStart.getDay(); // 0 = Sunday, 1 = Monday, ..., 6 = Saturday
+        const daysToMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1; // Convert Sunday (0) to 6 days back
+        currentWeekStart.setDate(currentWeekStart.getDate() - daysToMonday);
+        currentWeekStart.setHours(0, 0, 0, 0); // Start of Monday
+        
+        // Get the end of the current week (Sunday)
+        const currentWeekEnd = new Date(currentWeekStart);
+        currentWeekEnd.setDate(currentWeekEnd.getDate() + 6); // Add 6 days to get Sunday
+        currentWeekEnd.setHours(23, 59, 59, 999); // End of Sunday
+        
+        console.log('[Summary] Current week range:', currentWeekStart.toISOString(), 'to', currentWeekEnd.toISOString());
+        
+        // Filter features that fall within the current week based on release_date
+        const weeklyFeatures = features.filter((feature: FeatureResponse) => {
+          if (!feature.release_date) {
+            console.warn('[Summary] Feature missing release_date:', feature);
+            return false;
+          }
+          try {
+            const releaseDate = new Date(feature.release_date);
+            // Check if date is valid and within the current week
+            const isValidDate = !isNaN(releaseDate.getTime());
+            const isWithinCurrentWeek = releaseDate >= currentWeekStart && releaseDate <= currentWeekEnd;
+            
+            if (!isValidDate) {
+              console.warn('[Summary] Invalid release date format:', feature.release_date);
+            }
+            
+            return isValidDate && isWithinCurrentWeek;
+          } catch (e) {
+            console.warn('[Summary] Error parsing release date:', feature.release_date, e);
+            return false;
+          } 
         });
         
-        // Group features by company
-        const companiesMap = new Map<string, CompanyData>();
+        console.log('[Summary] Filtered weekly features (current week):', weeklyFeatures.length, 'out of', features.length);
         
-        weeklyFeatures.forEach((feature: WeeklyRelease) => {
-          const companyName = feature.company_name;
+        // Group features by company for the current week
+        const companiesMap = new Map<string, CompanyData>();
+        // Track unique releases within the week (release_date + company_name combinations)
+        // Multiple features from the same company on the same release_date count as one release
+        const uniqueReleasesSet = new Set<string>();
+        
+        weeklyFeatures.forEach((feature: FeatureResponse) => {
+          // Handle both WeeklyRelease interface and APIFeature interface
+          const companyName = feature.company_name || 'Unknown';
+          const featureId = feature.id;
+          const featureName = feature.name || 'Unnamed Feature';
+          const featureSummary = feature.summary || '';
+          const featureCategory = feature.category || 'Other';
+          const featureReleaseDate = feature.release_date || new Date().toISOString();
+          const featureHighlights = feature.highlights || [];
+          const companyId = feature.company_id || 0;
+          const featureVersion = feature.version || null;
+          
+          // Create a unique key for release_date + company_name
+          // Normalize the date to just the date part (without time) for grouping
+          // This ensures features released on the same date by the same company count as one release
+          const releaseDate = new Date(featureReleaseDate);
+          if (isNaN(releaseDate.getTime())) {
+            console.warn('[Summary] Invalid release date for feature:', featureId, featureReleaseDate);
+            return; // Skip invalid dates
+          }
+          const dateKey = releaseDate.toISOString().split('T')[0]; // YYYY-MM-DD format
+          const releaseKey = `${companyName}|${dateKey}`;
+          
           if (!companiesMap.has(companyName)) {
             companiesMap.set(companyName, {
               company: {
-                id: feature.company_id,
+                id: companyId,
                 name: companyName,
                 homepage_url: '',
                 is_active: true,
@@ -201,26 +282,47 @@ const Summary = forwardRef<SummaryRef, SummaryProps>(({ insights, isLoading, err
           
           const companyData = companiesMap.get(companyName);
           if (companyData) {
+            // Always increment total_features (count of all features)
             companyData.week_summary.total_features++;
+            
+            // Only increment total_releases if this is a unique release_date + company_name combination
+            if (!uniqueReleasesSet.has(releaseKey)) {
+              uniqueReleasesSet.add(releaseKey);
+              companyData.week_summary.total_releases++;
+            }
+            
             companyData.all_features.push({
-            id: feature.id,
-            name: feature.name,
-            summary: feature.summary,
-            category: feature.category,
-            version: feature.version,
-            release_date: feature.release_date,
-            highlights: feature.highlights || [],
-            company_id: feature.company_id,
-            company_name: feature.company_name
-          });
+              id: featureId,
+              name: featureName,
+              summary: featureSummary,
+              category: featureCategory,
+              version: featureVersion,
+              release_date: featureReleaseDate,
+              highlights: featureHighlights,
+              company_id: companyId,
+              company_name: companyName
+            });
           }
         });
+        
+        // Calculate total unique releases across all companies
+        const totalUniqueReleases = Array.from(companiesMap.values()).reduce(
+          (sum, company) => sum + company.week_summary.total_releases,
+          0
+        );
+        
+        // Log breakdown by company
+        console.log('[Summary] Weekly breakdown by company:');
+        Array.from(companiesMap.values()).forEach(company => {
+          console.log(`  ${company.company.name}: ${company.week_summary.total_releases} releases, ${company.week_summary.total_features} features`);
+        });
+        console.log(`[Summary] Total: ${totalUniqueReleases} unique releases, ${weeklyFeatures.length} total features`);
         
         // Convert to array format expected by the component
         const weeklyReleasesData: WeeklyReleasesData = {
           companies: Array.from(companiesMap.values()),
           overall_summary: {
-            total_releases: weeklyFeatures.length,
+            total_releases: totalUniqueReleases,
             total_features: weeklyFeatures.length,
             active_companies: companiesMap.size
           },
@@ -529,16 +631,16 @@ const Summary = forwardRef<SummaryRef, SummaryProps>(({ insights, isLoading, err
           <p style={{ textAlign: 'center', padding: '20px', color: '#ef4444' }}>Unable to load release breakdown</p>
         ) : weeklyReleases && weeklyReleases.companies && weeklyReleases.companies.length > 0 ? (
           (() => {
-            // Calculate total features across all companies
-            const totalFeatures = weeklyReleases.companies.reduce((sum, c) => sum + c.week_summary.total_features, 0);
+            // Calculate total releases across all companies
+            const totalReleases = weeklyReleases.companies.reduce((sum, c) => sum + c.week_summary.total_releases, 0);
             
             return weeklyReleases.companies
-              .filter(c => c.week_summary.total_features > 0)
-              .sort((a, b) => b.week_summary.total_features - a.week_summary.total_features)
+              .filter(c => c.week_summary.total_releases > 0)
+              .sort((a, b) => b.week_summary.total_releases - a.week_summary.total_releases)
               .slice(0, 4)
               .map((companyData) => {
-                const percentage = totalFeatures > 0 
-                  ? Math.round((companyData.week_summary.total_features / totalFeatures) * 100)
+                const percentage = totalReleases > 0 
+                  ? Math.round((companyData.week_summary.total_releases / totalReleases) * 100)
                   : 0;
                 const colorClass = getCompetitorColor(companyData.company.name);
                 const firstLetter = companyData.company.name.charAt(0).toUpperCase();
@@ -550,7 +652,7 @@ const Summary = forwardRef<SummaryRef, SummaryProps>(({ insights, isLoading, err
                         <div className={`competitor-breakdown-avatar ${colorClass}`}>{firstLetter}</div>
                         <div>
                           <h4 className="competitor-breakdown-name" style={{ textAlign: 'left' }}>{companyData.company.name}</h4>
-                          <p className="competitor-breakdown-count" style={{ textAlign: 'left' }}>{companyData.week_summary.total_features} releases</p>
+                          <p className="competitor-breakdown-count" style={{ textAlign: 'left' }}>{companyData.week_summary.total_releases} releases</p>
                         </div>
                       </div>
                       <span className="competitor-percentage">{percentage}%</span>
