@@ -45,16 +45,28 @@ interface InsightsData {
 }
 
 interface AnomalyData {
-  anomaly_type: string;
-  description: string;
-  severity: 'high' | 'medium' | 'low';
-  affected_entity: string;
-  metric_value: number;
-  expected_range?: {
-    min: number;
-    max: number;
+  id: number;
+  feature_id: number;
+  company_id: number;
+  category_id: number | null;
+  anomaly_score: number;
+  business_rank: number;
+  business_value_score: number;
+  explanation: string | null;
+  business_reason: string | null;
+  detection_weeks: number;
+  detected_at: string;
+  release_date: string;
+  feature: {
+    id: number;
+    name: string;
+    summary: string;
+    highlights?: string[];
+    category: string;
+    company_name: string;
+    release_date: string;
+    version?: string | null;
   };
-  recommendation?: string;
 }
 
 const InsightsGrid: React.FC = () => {
@@ -62,6 +74,7 @@ const InsightsGrid: React.FC = () => {
   const [anomalies, setAnomalies] = useState<AnomalyData[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [currentAnomalyIndex, setCurrentAnomalyIndex] = useState(0);
 
   // Helper function to format category names
   const formatCategory = (category: string): string => {
@@ -80,16 +93,11 @@ const InsightsGrid: React.FC = () => {
            category.charAt(0).toUpperCase() + category.slice(1).toLowerCase().replace(/_/g, ' ');
   };
 
-  // Format anomaly type for display
-  const formatAnomalyType = (type: string): string => {
-    const typeMap: { [key: string]: string } = {
-      'spike': 'Release Spike',
-      'drop': 'Activity Drop',
-      'trend_change': 'Trend Shift',
-      'outlier': 'Unusual Activity',
-      'pattern_break': 'Pattern Break'
-    };
-    return typeMap[type?.toLowerCase()] || type || 'Pattern Detected';
+  // Get severity based on business_rank
+  const getSeverity = (businessRank: number): 'high' | 'medium' | 'low' => {
+    if (businessRank === 1) return 'high';
+    if (businessRank === 3) return 'medium';
+    return 'low';
   };
 
   // Fetch insights data from API
@@ -124,8 +132,46 @@ const InsightsGrid: React.FC = () => {
           setInsights(insightsData);
         }
         
-        // Note: Anomalies endpoint is commented out in original code
-        // If needed in the future, uncomment and implement
+        // Fetch anomalies API
+        try {
+          const anomaliesResponse = await fetch(`${baseURL}/anomalies`, { 
+            signal: abortController.signal,
+            headers: {
+              'Authorization': AUTH_HEADER
+            }
+          });
+          
+          if (anomaliesResponse.ok) {
+            const anomaliesData = await anomaliesResponse.json();
+            console.log('[InsightsGrid] Anomalies data received:', anomaliesData);
+            
+            // Handle both array and object with array property
+            const anomaliesArray = Array.isArray(anomaliesData) 
+              ? anomaliesData 
+              : (anomaliesData.anomalies || anomaliesData.data || []);
+            
+            if (isMounted) {
+              // Filter out unranked anomalies (business_rank === 999), then sort by business_rank (lower is better)
+              // Then take top 3
+              const sortedAnomalies = anomaliesArray
+                .filter((a: AnomalyData) => a.business_rank !== 999)
+                .sort((a: AnomalyData, b: AnomalyData) => a.business_rank - b.business_rank)
+                .slice(0, 3);
+              setAnomalies(sortedAnomalies);
+            }
+          } else {
+            console.log('[InsightsGrid] Anomalies endpoint not available or returned error:', anomaliesResponse.status);
+            if (isMounted) {
+              setAnomalies([]);
+            }
+          }
+        } catch (anomaliesError) {
+          // Anomalies endpoint might not exist, that's okay
+          console.log('[InsightsGrid] Anomalies endpoint not available:', anomaliesError);
+          if (isMounted) {
+            setAnomalies([]);
+          }
+        }
       } catch (error) {
         if (error instanceof Error && error.name === 'AbortError') {
           console.log('[InsightsGrid] Fetch aborted');
@@ -151,6 +197,29 @@ const InsightsGrid: React.FC = () => {
       abortController.abort();
     };
   }, []);
+
+  // Auto-rotate carousel
+  useEffect(() => {
+    if (anomalies.length <= 1) return;
+    
+    const interval = setInterval(() => {
+      setCurrentAnomalyIndex((prev) => (prev + 1) % anomalies.length);
+    }, 5000); // Rotate every 5 seconds
+
+    return () => clearInterval(interval);
+  }, [anomalies.length]);
+
+  const goToNext = () => {
+    setCurrentAnomalyIndex((prev) => (prev + 1) % anomalies.length);
+  };
+
+  const goToPrevious = () => {
+    setCurrentAnomalyIndex((prev) => (prev - 1 + anomalies.length) % anomalies.length);
+  };
+
+  const goToSlide = (index: number) => {
+    setCurrentAnomalyIndex(index);
+  };
 
   return (
     <div className="insights-grid">
@@ -262,23 +331,153 @@ const InsightsGrid: React.FC = () => {
           {isLoading ? (
             <p className="insight-text" style={{ textAlign: 'left' }}>Loading patterns...</p>
           ) : anomalies && anomalies.length > 0 ? (
-            <p className="insight-text" style={{ textAlign: 'left' }}>
-              {(() => {
-                // Get the most significant anomaly (highest severity or first one)
-                const significantAnomaly = anomalies.find(a => a.severity === 'high') || anomalies[0];
-                if (significantAnomaly) {
+            <div style={{ 
+              position: 'relative',
+              minHeight: '140px', // Fixed height to prevent layout shift
+              overflow: 'hidden',
+              paddingBottom: anomalies.length > 1 ? '32px' : '0', // Space for dots indicator
+              width: '100%',
+              textAlign: 'left'
+            }}>
+              {/* Carousel Container */}
+              <div style={{
+                display: 'flex',
+                transform: `translateX(-${currentAnomalyIndex * (100 / anomalies.length)}%)`,
+                transition: 'transform 0.3s ease-in-out',
+                width: `${anomalies.length * 100}%`,
+                textAlign: 'left'
+              }}>
+                {anomalies.map((anomaly) => {
+                  const severity = getSeverity(anomaly.business_rank);
+                  const slideWidth = 100 / anomalies.length;
                   return (
-                    <>
-                      <strong className="highlight-teal">{formatAnomalyType(significantAnomaly.anomaly_type)}</strong>: {significantAnomaly.description || 'Anomaly detected in release patterns'}
-                      {significantAnomaly.recommendation && (
-                        <>. <em>{significantAnomaly.recommendation}</em></>
-                      )}
-                    </>
+                    <div
+                      key={anomaly.id}
+                      style={{
+                        width: `${slideWidth}%`,
+                        flexShrink: 0,
+                        paddingRight: '8px',
+                        boxSizing: 'border-box',
+                        textAlign: 'left'
+                      }}
+                    >
+                      <div style={{ textAlign: 'left' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px', gap: '12px' }}>
+                          <strong className="highlight-teal" style={{ flex: 1, textAlign: 'left' }}>
+                            {anomaly.feature.name}
+                          </strong>
+                          <span style={{ 
+                            fontSize: '0.75rem', 
+                            fontWeight: '600',
+                            color: severity === 'high' ? '#ef4444' : severity === 'medium' ? '#f59e0b' : '#6b7280',
+                            textTransform: 'uppercase',
+                            flexShrink: 0,
+                            padding: '2px 8px',
+                            borderRadius: '4px',
+                            backgroundColor: severity === 'high' ? '#fee2e2' : severity === 'medium' ? '#fef3c7' : '#f3f4f6'
+                          }}>
+                            {severity}
+                          </span>
+                        </div>
+                        <p className="insight-text" style={{ margin: 0, fontSize: '0.875rem', lineHeight: '1.5', textAlign: 'left' }}>
+                          {anomaly.business_reason || 'Anomaly detected in release patterns'}
+                          <span style={{ color: '#6b7280', fontSize: '0.8125rem' }}> • {anomaly.feature.company_name}</span>
+                        </p>
+                      </div>
+                    </div>
                   );
-                }
-                return 'Multiple patterns detected across competitors—review for strategic insights.';
-              })()}
-            </p>
+                })}
+              </div>
+
+              {/* Navigation Controls */}
+              {anomalies.length > 1 && (
+                <>
+                  {/* Previous Button */}
+                  <button
+                    onClick={goToPrevious}
+                    style={{
+                      position: 'absolute',
+                      left: '0',
+                      top: '50%',
+                      transform: 'translateY(-50%)',
+                      background: 'rgba(255, 255, 255, 0.9)',
+                      border: '1px solid #e5e7eb',
+                      borderRadius: '50%',
+                      width: '28px',
+                      height: '28px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      cursor: 'pointer',
+                      zIndex: 10,
+                      boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
+                    }}
+                    aria-label="Previous anomaly"
+                  >
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                      <path d="M10 12L6 8L10 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                    </svg>
+                  </button>
+
+                  {/* Next Button */}
+                  <button
+                    onClick={goToNext}
+                    style={{
+                      position: 'absolute',
+                      right: '0',
+                      top: '50%',
+                      transform: 'translateY(-50%)',
+                      background: 'rgba(255, 255, 255, 0.9)',
+                      border: '1px solid #e5e7eb',
+                      borderRadius: '50%',
+                      width: '28px',
+                      height: '28px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      cursor: 'pointer',
+                      zIndex: 10,
+                      boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
+                    }}
+                    aria-label="Next anomaly"
+                  >
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                      <path d="M6 4L10 8L6 12" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                    </svg>
+                  </button>
+
+                  {/* Dots Indicator */}
+                  <div style={{
+                    display: 'flex',
+                    justifyContent: 'center',
+                    gap: '6px',
+                    position: 'absolute',
+                    bottom: '8px',
+                    left: '50%',
+                    transform: 'translateX(-50%)',
+                    width: '100%'
+                  }}>
+                    {anomalies.map((_, index) => (
+                      <button
+                        key={index}
+                        onClick={() => goToSlide(index)}
+                        style={{
+                          width: currentAnomalyIndex === index ? '24px' : '8px',
+                          height: '8px',
+                          borderRadius: '4px',
+                          border: 'none',
+                          background: currentAnomalyIndex === index ? '#5b7cff' : '#d1d5db',
+                          cursor: 'pointer',
+                          transition: 'all 0.3s ease-in-out',
+                          padding: 0
+                        }}
+                        aria-label={`Go to slide ${index + 1}`}
+                      />
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
           ) : (
             <p className="insight-text" style={{ textAlign: 'left' }}>
               All <strong className="highlight-teal">competitors</strong> are showing consistent release patterns—market is stable with no significant anomalies detected.
