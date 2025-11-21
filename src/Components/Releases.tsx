@@ -51,7 +51,6 @@ const Releases: React.FC = () => {
   const [syncMessage, setSyncMessage] = useState<{ type: 'success' | 'error' | 'info', text: string } | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
-  const [isAnalyzing, setIsAnalyzing] = useState(false);
 
   // State for releases data
   const [releases, setReleases] = useState<Release[]>([]);
@@ -257,93 +256,6 @@ const Releases: React.FC = () => {
   useEffect(() => {
     fetchReleases();
   }, [fetchReleases]);
-
-  // Refresh releases list after re-run
-  const refreshReleases = async () => {
-    console.log('[Releases] Refreshing releases data...');
-    await fetchReleases();
-  };
-
-  // Re-run analysis handler
-  const handleRerunAnalysis = async () => {
-    if (releases.length === 0) {
-      toast.warning('No data to analyze. Please add a company first.');
-      return;
-    }
-
-    setIsAnalyzing(true);
-    const baseURL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
-    const toastId = toast.info('Starting analysis...', { autoClose: false });
-
-    try {
-      // Get first company from API
-      const companiesResponse = await fetch(`${baseURL}/companies?skip=0&limit=1`, {
-        headers: {
-          'Authorization': AUTH_HEADER
-        }
-      });
-      
-      if (!companiesResponse.ok) {
-        throw new Error('Failed to fetch companies');
-      }
-
-      const companies = await companiesResponse.json();
-      
-      if (companies.length === 0) {
-        toast.update(toastId, {
-          render: 'No companies found to analyze',
-          type: 'error',
-          autoClose: 5000
-        });
-        return;
-      }
-
-      const targetCompanyId = companies[0].id;
-
-      // Call process-company API
-      toast.update(toastId, { render: 'Processing company data...' });
-      const processResponse = await fetch(
-        `${baseURL}/process-company`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': AUTH_HEADER
-          },
-          body: JSON.stringify({
-            company_id: targetCompanyId.toString()
-          })
-        }
-      );
-      
-      if (processResponse.ok) {
-        const processData = await processResponse.json();
-        console.log('✓ Company processing completed:', processData);
-        
-        // Success - refresh data
-        toast.update(toastId, {
-          render: 'Re-run successful! Refreshing data...',
-          type: 'success',
-          autoClose: 2000
-        });
-
-        await refreshReleases();
-        
-        toast.success('Analysis complete and data refreshed!');
-      } else {
-        throw new Error('Failed to process company');
-      }
-    } catch (error) {
-      console.error('[Releases] Re-run analysis error:', error);
-      toast.update(toastId, {
-        render: 'Analysis failed. Please try again.',
-        type: 'error',
-        autoClose: 5000
-      });
-    } finally {
-      setIsAnalyzing(false);
-    }
-  };
 
   const handleConnectNotion = async () => {
     // Sync releases to Notion if already connected
@@ -888,7 +800,6 @@ const Releases: React.FC = () => {
           <button 
             className="inline-action-button"
             onClick={() => navigate('/onboarding?step=1')}
-            disabled={isAnalyzing}
           >
             <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
               <path d="M8 3V13M3 8H13" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
