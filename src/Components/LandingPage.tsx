@@ -6,7 +6,7 @@ const LandingPage: React.FC = () => {
   const navigate = useNavigate();
 
   const handleStartAnalysis = () => {
-    navigate('/login');
+    navigate('/dashboard');
   };
 
   return (

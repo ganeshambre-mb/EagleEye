@@ -51,7 +51,6 @@ const Releases: React.FC = () => {
   const [syncMessage, setSyncMessage] = useState<{ type: 'success' | 'error' | 'info', text: string } | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
-  const [isAnalyzing, setIsAnalyzing] = useState(false);
 
   // State for releases data
   const [releases, setReleases] = useState<Release[]>([]);
@@ -258,121 +257,50 @@ const Releases: React.FC = () => {
     fetchReleases();
   }, [fetchReleases]);
 
-  // Refresh releases list after re-run
-  const refreshReleases = async () => {
-    console.log('[Releases] Refreshing releases data...');
-    await fetchReleases();
-  };
-
-  // Re-run analysis handler
-  const handleRerunAnalysis = async () => {
-    if (releases.length === 0) {
-      toast.warning('No data to analyze. Please add a company first.');
-      return;
-    }
-
-    setIsAnalyzing(true);
-    const baseURL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
-    const toastId = toast.info('Starting analysis...', { autoClose: false });
-
-    try {
-      // Get first company from API
-      const companiesResponse = await fetch(`${baseURL}/companies?skip=0&limit=1`, {
-        headers: {
-          'Authorization': AUTH_HEADER
-        }
-      });
-      
-      if (!companiesResponse.ok) {
-        throw new Error('Failed to fetch companies');
-      }
-
-      const companies = await companiesResponse.json();
-      
-      if (companies.length === 0) {
-        toast.update(toastId, {
-          render: 'No companies found to analyze',
-          type: 'error',
-          autoClose: 5000
-        });
-        return;
-      }
-
-      const targetCompanyId = companies[0].id;
-
-      // Call process-company API
-      toast.update(toastId, { render: 'Processing company data...' });
-      const processResponse = await fetch(
-        `${baseURL}/process-company`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': AUTH_HEADER
-          },
-          body: JSON.stringify({
-            company_id: targetCompanyId.toString()
-          })
-        }
-      );
-      
-      if (processResponse.ok) {
-        const processData = await processResponse.json();
-        console.log('✓ Company processing completed:', processData);
-        
-        // Success - refresh data
-        toast.update(toastId, {
-          render: 'Re-run successful! Refreshing data...',
-          type: 'success',
-          autoClose: 2000
-        });
-
-        await refreshReleases();
-        
-        toast.success('Analysis complete and data refreshed!');
-      } else {
-        throw new Error('Failed to process company');
-      }
-    } catch (error) {
-      console.error('[Releases] Re-run analysis error:', error);
-      toast.update(toastId, {
-        render: 'Analysis failed. Please try again.',
-        type: 'error',
-        autoClose: 5000
-      });
-    } finally {
-      setIsAnalyzing(false);
-    }
-  };
-
   const handleConnectNotion = async () => {
     // Sync releases to Notion if already connected
     setIsSyncing(true);
     setSyncMessage(null);
 
+    // Determine if we're actually in development (localhost) or production (Vercel)
+    const isActuallyDev = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+    const envApiUrl = import.meta.env.VITE_API_URL;
+    
+    // Force staging URL if not localhost and no env var is set
+    let apiUrl;
+    if (isActuallyDev) {
+      apiUrl = 'http://localhost:8000';
+    } else {
+      // On Vercel/production, ensure we never use localhost
+      apiUrl = envApiUrl || 'https://www.staging.arcusplatform.io/eagle-eye';
+    }
+    
+    console.log('[Releases] Environment check:', {
+      hostname: window.location.hostname,
+      isActuallyDev: isActuallyDev,
+      finalApiUrl: apiUrl
+    });
+    
+    // Use simple endpoint - backend handles everything
+    const syncUrl = isActuallyDev 
+      ? '/api/notion/sync-releases'
+      : `${apiUrl}/api/notion/sync-releases`;
+    
+    console.log('[Releases] Sync URL:', syncUrl);
+
     try {
       console.log('[Releases] Calling Notion sync API...');
       
-      // Use relative URL if in development with Vite proxy, otherwise use full URL  
-      const syncUrl = import.meta.env.DEV ? '/api/notion/sync-releases' : 'http://localhost:8000/api/notion/sync-releases';
-      console.log('[Releases] Sync URL:', syncUrl);
-      
+      // Simple POST request - backend handles all authentication and logic
       const response = await fetch(syncUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': AUTH_HEADER
-        }
+        method: 'POST'
       });
 
       console.log('[Releases] Response status:', response.status, response.statusText);
-      console.log('[Releases] Response headers:', Object.fromEntries(response.headers.entries()));
       
-      // Try to get response body
+      // Get response body
       const responseText = await response.text();
-      console.log('[Releases] Response body (raw):', responseText);
-      console.log('[Releases] Response body length:', responseText.length);
-      console.log('[Releases] Response body type:', typeof responseText);
+      console.log('[Releases] Response body:', responseText);
       
       let data;
       try {
@@ -382,29 +310,11 @@ const Releases: React.FC = () => {
         data = { error: 'Invalid JSON response', raw: responseText };
       }
       
-      console.log('[Releases] Sync response (parsed):', data);
-      console.log('[Releases] Data object keys:', Object.keys(data));
+      console.log('[Releases] Parsed response:', data);
 
-      // Check for success: HTTP 200/201/202 status OR explicit success field
-      const isSuccess = response.ok && (
-        data.success === true || 
-        data.status === 'success' || 
-        data.result === 'success' ||
-        data.status === 'ok' ||
-        data.result === 'ok' ||
-        (!data.error && !data.detail && Object.keys(data).length === 0) || // Empty response = success
-        (!data.error && data.message && !data.detail) || // Message without error = success
-        (!data.error && data.detail && typeof data.detail === 'string' && !data.detail.includes('error')) || // Detail without error = success
-        response.status === 200 // Treat HTTP 200 as success regardless of response body
-      );
-
-      console.log('[Releases] Success check result:', isSuccess);
-
-      if (isSuccess) {
+      if (response.ok) {
         console.log('✅ Successfully synced to Notion:', data);
-        const successMessage = data.message || data.detail || 
-                              (Object.keys(data).length === 0 ? 'Sync completed successfully!' : 
-                               'Successfully synced releases to Notion!');
+        const successMessage = data.message || data.detail || 'Successfully synced releases to Notion!';
         setSyncMessage({ 
           type: 'success', 
           text: successMessage
@@ -415,23 +325,16 @@ const Releases: React.FC = () => {
       } else {
         console.error('❌ Sync failed with status:', response.status);
         console.error('❌ Error data:', data);
-        console.error('❌ Full response:', {
-          status: response.status,
-          statusText: response.statusText,
-          data: data
-        });
         
-        // For 422 errors, show the validation error details
+        // Handle specific HTTP errors
         let errorMessage = data.error || data.detail || 'Failed to sync to Notion';
-        if (response.status === 422 && data.detail) {
-          // FastAPI validation errors
-          if (Array.isArray(data.detail)) {
-            errorMessage = 'Validation Error: ' + data.detail.map((e: { loc?: string[]; msg?: string }) => 
-              `${e.loc?.join('.')} - ${e.msg}`
-            ).join(', ');
-          } else if (typeof data.detail === 'string') {
-            errorMessage = data.detail;
-          }
+        
+        if (response.status === 422) {
+          errorMessage = `Validation Error: ${data.detail || 'Invalid request format'}`;
+        } else if (response.status === 404) {
+          errorMessage = `Endpoint not found: ${syncUrl} doesn't exist on the server.`;
+        } else if (response.status === 500) {
+          errorMessage = `Server Error: ${data.detail || 'Internal server error occurred'}`;
         }
         
         setSyncMessage({ 
@@ -441,9 +344,28 @@ const Releases: React.FC = () => {
       }
     } catch (error) {
       console.error('❌ Network error:', error);
+      
+      let errorMessage = 'Network error. ';
+      
+      if (error instanceof TypeError) {
+        if (error.message.includes('fetch') || error.message.includes('CORS') || error.message.includes('cross-origin')) {
+          if (isActuallyDev) {
+            errorMessage = 'Cannot connect to local backend. Make sure API server is running on localhost:8000.';
+          } else {
+            errorMessage = `CORS Error: Your staging API server needs to allow requests from ${window.location.origin}.`;
+          }
+        } else if (error.message.includes('Failed to fetch')) {
+          errorMessage += `Cannot reach ${syncUrl}. Check if the API endpoint exists and is accessible.`;
+        } else {
+          errorMessage += error.message;
+        }
+      } else {
+        errorMessage += 'Make sure backend is running.';
+      }
+      
       setSyncMessage({ 
         type: 'error', 
-        text: 'Network error. Make sure backend is running.' 
+        text: errorMessage
       });
     } finally {
       setIsSyncing(false);
@@ -878,7 +800,6 @@ const Releases: React.FC = () => {
           <button 
             className="inline-action-button"
             onClick={() => navigate('/onboarding?step=1')}
-            disabled={isAnalyzing}
           >
             <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
               <path d="M8 3V13M3 8H13" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
@@ -894,7 +815,7 @@ const Releases: React.FC = () => {
             </svg>
             Add Category
           </button>
-          <button 
+          {/*<button 
             className="rerun-button"
             onClick={handleRerunAnalysis}
             disabled={isAnalyzing}
@@ -915,7 +836,7 @@ const Releases: React.FC = () => {
                 Re-run Analysis
               </>
             )}
-          </button>
+          </button>*/}
         </div>
       </div>
 
@@ -945,12 +866,12 @@ const Releases: React.FC = () => {
 
       {/* Action Buttons */}
       <div className="action-buttons">
-        <button className="action-btn primary-btn">
+        {/*<button className="action-btn primary-btn">
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
             <path d="M8 3V13M3 8H13" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
           </svg>
           Add Manually
-        </button>
+        </button>*/}
         <button 
           className="action-btn secondary-btn" 
           onClick={handleConnectNotion}

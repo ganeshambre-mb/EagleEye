@@ -10,7 +10,7 @@ import './OnboardingFlow.css';
 import { useNavigate } from 'react-router-dom';
 
 interface OnboardingFlowProps {
-  onComplete: () => void;
+  onComplete?: () => void;
   initialStep?: number;
 }
 
@@ -42,8 +42,7 @@ interface CategoryAPIResponse {
   is_active?: boolean;
 }
 
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-export function OnboardingFlow({ onComplete: _onComplete, initialStep = 1 }: OnboardingFlowProps) {
+export function OnboardingFlow({ initialStep = 1 }: OnboardingFlowProps) {
   const navigate = useNavigate();
   const [step, setStep] = useState(initialStep);
   const [companyName, setCompanyName] = useState('Mindbody Inc');
@@ -299,7 +298,7 @@ export function OnboardingFlow({ onComplete: _onComplete, initialStep = 1 }: Onb
         }
       } else {
         // Use the first existing company from prefilled data
-        // const firstCompany = competitors[0];
+        // No need to store reference for simplified approach
       }
 
       // Update modified existing categories
