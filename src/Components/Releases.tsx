@@ -874,29 +874,6 @@ const Releases: React.FC = () => {
         </button>*/}
         <button 
           className="action-btn secondary-btn" 
-          onClick={handleConnectNotion}
-          disabled={isSyncing}
-          title={'Sync releases to Notion'}
-        >
-          {isSyncing ? (
-            <>
-              <svg className="spinning" width="16" height="16" viewBox="0 0 16 16" fill="none">
-                <path d="M8 2V4M8 12V14M14 8H12M4 8H2M12.2 12.2L10.8 10.8M5.2 5.2L3.8 3.8M12.2 3.8L10.8 5.2M5.2 10.8L3.8 12.2" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
-              </svg>
-              Syncing...
-            </>
-          ) : (
-            <>
-              <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                <rect x="2" y="2" width="12" height="12" rx="2" stroke="currentColor" strokeWidth="1.5"/>
-                <text x="8" y="11" fontSize="8" fontWeight="700" textAnchor="middle" fill="currentColor" fontFamily="system-ui">N</text>
-              </svg>
-              {'Sync Notion'}
-            </>
-          )}
-        </button>
-        <button 
-          className="action-btn secondary-btn" 
           onClick={handleSendEmailClick}
           disabled={isSending}
         >
