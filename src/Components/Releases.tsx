@@ -47,8 +47,7 @@ const Releases: React.FC = () => {
   const [emailRecipients, setEmailRecipients] = useState('');
   const tableContainerRef = useRef<HTMLDivElement>(null);
   const tableFooterRef = useRef<HTMLDivElement>(null);
-  const [isSyncing, setIsSyncing] = useState(false);
-  const [syncMessage, setSyncMessage] = useState<{ type: 'success' | 'error' | 'info', text: string } | null>(null);
+  const [syncMessage] = useState<{ type: 'success' | 'error' | 'info', text: string } | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
 
@@ -256,121 +255,6 @@ const Releases: React.FC = () => {
   useEffect(() => {
     fetchReleases();
   }, [fetchReleases]);
-
-  const handleConnectNotion = async () => {
-    // Sync releases to Notion if already connected
-    setIsSyncing(true);
-    setSyncMessage(null);
-
-    // Determine if we're actually in development (localhost) or production (Vercel)
-    const isActuallyDev = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-    const envApiUrl = import.meta.env.VITE_API_URL;
-    
-    // Force staging URL if not localhost and no env var is set
-    let apiUrl;
-    if (isActuallyDev) {
-      apiUrl = 'http://localhost:8000';
-    } else {
-      // On Vercel/production, ensure we never use localhost
-      apiUrl = envApiUrl || 'https://www.staging.arcusplatform.io/eagle-eye';
-    }
-    
-    console.log('[Releases] Environment check:', {
-      hostname: window.location.hostname,
-      isActuallyDev: isActuallyDev,
-      finalApiUrl: apiUrl
-    });
-    
-    // Use simple endpoint - backend handles everything
-    const syncUrl = isActuallyDev 
-      ? '/api/notion/sync-releases'
-      : `${apiUrl}/api/notion/sync-releases`;
-    
-    console.log('[Releases] Sync URL:', syncUrl);
-
-    try {
-      console.log('[Releases] Calling Notion sync API...');
-      
-      // Simple POST request - backend handles all authentication and logic
-      const response = await fetch(syncUrl, {
-        method: 'POST'
-      });
-
-      console.log('[Releases] Response status:', response.status, response.statusText);
-      
-      // Get response body
-      const responseText = await response.text();
-      console.log('[Releases] Response body:', responseText);
-      
-      let data;
-      try {
-        data = responseText ? JSON.parse(responseText) : {};
-      } catch (e) {
-        console.error('[Releases] Failed to parse response as JSON:', e);
-        data = { error: 'Invalid JSON response', raw: responseText };
-      }
-      
-      console.log('[Releases] Parsed response:', data);
-
-      if (response.ok) {
-        console.log('✅ Successfully synced to Notion:', data);
-        const successMessage = data.message || data.detail || 'Successfully synced releases to Notion!';
-        setSyncMessage({ 
-          type: 'success', 
-          text: successMessage
-        });
-        
-        // Auto-hide success message after 5 seconds
-        setTimeout(() => setSyncMessage(null), 5000);
-      } else {
-        console.error('❌ Sync failed with status:', response.status);
-        console.error('❌ Error data:', data);
-        
-        // Handle specific HTTP errors
-        let errorMessage = data.error || data.detail || 'Failed to sync to Notion';
-        
-        if (response.status === 422) {
-          errorMessage = `Validation Error: ${data.detail || 'Invalid request format'}`;
-        } else if (response.status === 404) {
-          errorMessage = `Endpoint not found: ${syncUrl} doesn't exist on the server.`;
-        } else if (response.status === 500) {
-          errorMessage = `Server Error: ${data.detail || 'Internal server error occurred'}`;
-        }
-        
-        setSyncMessage({ 
-          type: 'error', 
-          text: `${errorMessage} (Status: ${response.status})` 
-        });
-      }
-    } catch (error) {
-      console.error('❌ Network error:', error);
-      
-      let errorMessage = 'Network error. ';
-      
-      if (error instanceof TypeError) {
-        if (error.message.includes('fetch') || error.message.includes('CORS') || error.message.includes('cross-origin')) {
-          if (isActuallyDev) {
-            errorMessage = 'Cannot connect to local backend. Make sure API server is running on localhost:8000.';
-          } else {
-            errorMessage = `CORS Error: Your staging API server needs to allow requests from ${window.location.origin}.`;
-          }
-        } else if (error.message.includes('Failed to fetch')) {
-          errorMessage += `Cannot reach ${syncUrl}. Check if the API endpoint exists and is accessible.`;
-        } else {
-          errorMessage += error.message;
-        }
-      } else {
-        errorMessage += 'Make sure backend is running.';
-      }
-      
-      setSyncMessage({ 
-        type: 'error', 
-        text: errorMessage
-      });
-    } finally {
-      setIsSyncing(false);
-    }
-  };
 
   const handleSendEmailClick = () => {
     setShowEmailModal(true);
