@@ -42,6 +42,11 @@ export default defineConfig({
         target: 'http://localhost:8000',
         changeOrigin: true,
         secure: false,
+      },
+      '/email': {
+        target: 'http://localhost:8000',
+        changeOrigin: true,
+        secure: false,
       }
     }
   },

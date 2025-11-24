@@ -499,12 +499,17 @@ const Releases: React.FC = () => {
       }
       const base64String = btoa(binaryString);
 
+      // Generate filename with current datetime appended
+      const now = new Date();
+      const timestamp = now.toISOString().replace(/[:.]/g, '-').slice(0, 19); // YYYY-MM-DDTHH-MM-SS
+      const dynamicFilename = `${EMAIL_FILENAME.replace('.pdf', '')}_${timestamp}.pdf`;
+
       // Prepare API payload
       const payload: EmailPayload = {
         recipients: recipients,
         subject: EMAIL_SUBJECT,
         body: EMAIL_BODY,
-        filename: EMAIL_FILENAME,
+        filename: dynamicFilename,
         byte_array_base64: base64String,
       };
 
@@ -532,17 +537,44 @@ const Releases: React.FC = () => {
       return;
     }
 
-    // Validate email format (basic validation)
+    // Parse and validate email format
     const emails = emailRecipients.split(',').map(email => email.trim()).filter(email => email);
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    const invalidEmails = emails.filter(email => !emailRegex.test(email));
+    const invalidFormatEmails = emails.filter(email => !emailRegex.test(email));
     
-    if (invalidEmails.length > 0) {
-      toast.error(`Invalid email addresses: ${invalidEmails.join(', ')}`);
+    if (invalidFormatEmails.length > 0) {
+      toast.error(`Invalid email addresses: ${invalidFormatEmails.join(', ')}`);
       return;
     }
 
-    await handleSendEmail(emails.join(','));
+    // Valid domains
+    const validDomains = ['@mindbodyonline.com', '@playlist.com', '@mbo.com'];
+    
+    // Separate valid and invalid domain emails
+    const validEmails: string[] = [];
+    const invalidDomainEmails: string[] = [];
+    
+    emails.forEach(email => {
+      const hasValidDomain = validDomains.some(domain => email.toLowerCase().endsWith(domain));
+      if (hasValidDomain) {
+        validEmails.push(email);
+      } else {
+        invalidDomainEmails.push(email);
+      }
+    });
+
+    // Show error for invalid domain emails
+    if (invalidDomainEmails.length > 0) {
+      toast.error(`Could not send email to this domain: ${invalidDomainEmails.join(', ')}`);
+    }
+
+    // If there are valid emails, proceed with sending
+    if (validEmails.length > 0) {
+      await handleSendEmail(validEmails.join(','));
+    } else if (invalidDomainEmails.length > 0) {
+      // Only invalid domain emails were provided
+      return;
+    }
   };
 
   return (
