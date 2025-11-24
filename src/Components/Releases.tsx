@@ -4,6 +4,8 @@ import html2canvas from 'html2canvas';
 import jsPDF from 'jspdf';
 import { toast, ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
+import DatePicker from 'react-datepicker';
+import 'react-datepicker/dist/react-datepicker.css';
 import DataService from '../services/DataService';
 import type { EmailPayload } from '../services/DataService';
 import { EMAIL_BODY, EMAIL_SUBJECT, EMAIL_FILENAME } from '../constants/emailConstants';
@@ -20,6 +22,7 @@ interface Release {
   category: string;
   priority: 'High' | 'Medium' | 'Low';
   date: string;
+  rawDate: Date;
 }
 
 interface APIFeature {
@@ -39,6 +42,204 @@ interface APIFeature {
   synced_to_notion: boolean;
 }
 
+interface FilterDropdownProps {
+  label: string;
+  options: string[];
+  selectedValues: Set<string>;
+  onChange: (newSelected: Set<string>) => void;
+  isOpen: boolean;
+  onToggle: () => void;
+  dropdownRef: React.RefObject<HTMLDivElement | null>;
+}
+
+interface DateFilterDropdownProps {
+  startDate: Date | null;
+  endDate: Date | null;
+  onChange: (startDate: Date | null, endDate: Date | null) => void;
+  isOpen: boolean;
+  onToggle: () => void;
+  dropdownRef: React.RefObject<HTMLDivElement | null>;
+}
+
+const FilterDropdown: React.FC<FilterDropdownProps> = ({
+  label,
+  options,
+  selectedValues,
+  onChange,
+  isOpen,
+  onToggle,
+  dropdownRef
+}) => {
+  const handleSelectAll = () => {
+    onChange(new Set(options));
+  };
+
+  const handleDeselectAll = () => {
+    onChange(new Set());
+  };
+
+  const handleToggleOption = (option: string) => {
+    const newSelected = new Set(selectedValues);
+    if (newSelected.has(option)) {
+      newSelected.delete(option);
+    } else {
+      newSelected.add(option);
+    }
+    onChange(newSelected);
+  };
+
+  const isActive = selectedValues.size > 0;
+
+  return (
+    <div className="filter-dropdown-container" ref={dropdownRef}>
+      <button
+        className={`filter-dropdown-button ${isActive ? 'active' : ''}`}
+        onClick={onToggle}
+      >
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+          <path d="M2 4H14M4 8H12M6 12H10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+        </svg>
+        <span>{label}</span>
+        {isActive && (
+          <span className="filter-count-badge">
+            {selectedValues.size}
+          </span>
+        )}
+        <svg width="12" height="12" viewBox="0 0 12 12" fill="none" style={{ marginLeft: '4px' }}>
+          <path d="M3 4.5L6 7.5L9 4.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+        </svg>
+      </button>
+
+      {isOpen && (
+        <div className="filter-dropdown-panel">
+          <div className="filter-dropdown-header">
+            <button className="filter-action-link" onClick={handleSelectAll}>
+              Select All
+            </button>
+            <button className="filter-action-link" onClick={handleDeselectAll}>
+              Deselect All
+            </button>
+          </div>
+          <div className="filter-dropdown-options">
+            {options.map((option) => (
+              <label key={option} className="filter-option-item">
+                <input
+                  type="checkbox"
+                  checked={selectedValues.has(option)}
+                  onChange={() => handleToggleOption(option)}
+                />
+                <span className="filter-option-label">{option}</span>
+              </label>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+const DateFilterDropdown: React.FC<DateFilterDropdownProps> = ({
+  startDate,
+  endDate,
+  onChange,
+  isOpen,
+  onToggle,
+  dropdownRef
+}) => {
+  const isActive = startDate !== null || endDate !== null;
+
+  const handleClearDates = () => {
+    onChange(null, null);
+  };
+
+  const handleStartDateChange = (date: Date | null) => {
+    onChange(date, endDate);
+  };
+
+  const handleEndDateChange = (date: Date | null) => {
+    onChange(startDate, date);
+  };
+
+  // Convert null to undefined for DatePicker
+  const startDateValue = startDate ?? undefined;
+  const endDateValue = endDate ?? undefined;
+
+  return (
+    <div className="filter-dropdown-container" ref={dropdownRef}>
+      <button
+        className={`filter-dropdown-button ${isActive ? 'active' : ''}`}
+        onClick={onToggle}
+      >
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+          <path d="M3 2H13C13.5523 2 14 2.44772 14 3V13C14 13.5523 13.5523 14 13 14H3C2.44772 14 2 13.5523 2 13V3C2 2.44772 2.44772 2 3 2Z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+          <path d="M11 1V3M5 1V3M2 5H14" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+        </svg>
+        <span>Date Range</span>
+        {isActive && (
+          <span className="filter-count-badge">
+            ✓
+          </span>
+        )}
+        <svg width="12" height="12" viewBox="0 0 12 12" fill="none" style={{ marginLeft: '4px' }}>
+          <path d="M3 4.5L6 7.5L9 4.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+        </svg>
+      </button>
+
+      {isOpen && (
+        <div className="filter-dropdown-panel date-filter-panel" style={{ minWidth: '280px' }}>
+          <div className="filter-dropdown-header">
+            <span style={{ fontSize: '0.875rem', fontWeight: '600', color: '#1a1a1a' }}>Select Date Range</span>
+            <button className="filter-action-link" onClick={handleClearDates}>
+              Clear Dates
+            </button>
+          </div>
+          <div className="filter-dropdown-options" style={{ padding: '12px', overflow: 'visible', maxHeight: 'none' }}>
+            <div style={{ marginBottom: '16px' }}>
+              <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: '500', color: '#374151', marginBottom: '8px' }}>
+                Start Date:
+              </label>
+              <DatePicker
+                selected={startDateValue}
+                onChange={handleStartDateChange}
+                selectsStart
+                startDate={startDateValue}
+                endDate={endDateValue}
+                maxDate={new Date()}
+                dateFormat="MMM d, yyyy"
+                placeholderText="Select start date"
+                className="date-picker-input"
+                isClearable
+                popperPlacement="bottom-start"
+                enableTabLoop={false}
+              />
+            </div>
+            <div>
+              <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: '500', color: '#374151', marginBottom: '8px' }}>
+                End Date:
+              </label>
+              <DatePicker
+                selected={endDateValue}
+                onChange={handleEndDateChange}
+                selectsEnd
+                startDate={startDateValue}
+                endDate={endDateValue}
+                minDate={startDateValue}
+                maxDate={new Date()}
+                dateFormat="MMM d, yyyy"
+                placeholderText="Select end date"
+                className="date-picker-input"
+                isClearable
+                popperPlacement="bottom-start"
+                enableTabLoop={false}
+              />
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
 const Releases: React.FC = () => {
   const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState('');
@@ -57,6 +258,18 @@ const Releases: React.FC = () => {
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
+
+  // Filter state
+  const [selectedCompetitors, setSelectedCompetitors] = useState<Set<string>>(new Set());
+  const [selectedCategories, setSelectedCategories] = useState<Set<string>>(new Set());
+  const [selectedStartDate, setSelectedStartDate] = useState<Date | null>(null);
+  const [selectedEndDate, setSelectedEndDate] = useState<Date | null>(null);
+  const [isCompetitorFilterOpen, setIsCompetitorFilterOpen] = useState(false);
+  const [isCategoryFilterOpen, setIsCategoryFilterOpen] = useState(false);
+  const [isDateFilterOpen, setIsDateFilterOpen] = useState(false);
+  const filterCompetitorRef = useRef<HTMLDivElement>(null);
+  const filterCategoryRef = useRef<HTMLDivElement>(null);
+  const filterDateRef = useRef<HTMLDivElement>(null);
 
   // Helper function to generate competitor color based on name
   const getCompetitorColor = (competitor: string): string => {
@@ -148,21 +361,69 @@ const Releases: React.FC = () => {
     );
   };
 
-  // Filter releases based on search query
+  // Extract unique filter values
+  const uniqueCompetitors = React.useMemo(() => {
+    const competitors = new Set(releases.map(r => r.competitor));
+    return Array.from(competitors).sort();
+  }, [releases]);
+
+  const uniqueCategories = React.useMemo(() => {
+    const categories = new Set(releases.map(r => r.category));
+    return Array.from(categories).sort();
+  }, [releases]);
+
+  // Filter releases based on competitor, category, date range, and search query
   const filteredReleases = React.useMemo(() => {
-    if (!searchQuery.trim()) {
-      return releases;
+    let filtered = releases;
+    
+    // Apply competitor filter
+    if (selectedCompetitors.size > 0) {
+      filtered = filtered.filter(release => selectedCompetitors.has(release.competitor));
     }
     
-    const query = searchQuery.toLowerCase().trim();
-    return releases.filter(release => 
-      release.competitor.toLowerCase().includes(query) ||
-      release.feature.toLowerCase().includes(query) ||
-      release.summary.toLowerCase().includes(query) ||
-      release.category.toLowerCase().includes(query) ||
-      release.date.toLowerCase().includes(query)
-    );
-  }, [releases, searchQuery]);
+    // Apply category filter
+    if (selectedCategories.size > 0) {
+      filtered = filtered.filter(release => selectedCategories.has(release.category));
+    }
+    
+    // Apply date range filter
+    if (selectedStartDate || selectedEndDate) {
+      filtered = filtered.filter(release => {
+        const releaseDate = release.rawDate;
+        
+        // If only start date is selected
+        if (selectedStartDate && !selectedEndDate) {
+          return releaseDate >= selectedStartDate;
+        }
+        
+        // If only end date is selected
+        if (!selectedStartDate && selectedEndDate) {
+          return releaseDate <= selectedEndDate;
+        }
+        
+        // If both dates are selected
+        if (selectedStartDate && selectedEndDate) {
+          return releaseDate >= selectedStartDate && releaseDate <= selectedEndDate;
+        }
+        
+        return true;
+      });
+    }
+    
+    // Apply search query filter
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase().trim();
+      filtered = filtered.filter(release => 
+        release.competitor.toLowerCase().includes(query) ||
+        release.feature.toLowerCase().includes(query) ||
+        release.summary.toLowerCase().includes(query) ||
+        release.category.toLowerCase().includes(query) ||
+        release.date.toLowerCase().includes(query)
+      );
+    }
+    
+    return filtered;
+  }, [releases, selectedCompetitors, selectedCategories, selectedStartDate, selectedEndDate, searchQuery]);
 
   // Calculate pagination
   const totalPages = Math.ceil(filteredReleases.length / itemsPerPage);
@@ -239,7 +500,8 @@ const Releases: React.FC = () => {
         summary: item.summary,
         category: formatCategory(item.category),
         priority: determinePriority(item.category),
-        date: formatDate(item.release_date)
+        date: formatDate(item.release_date),
+        rawDate: new Date(item.release_date)
       }));
       
       setReleases(transformedReleases);
@@ -255,6 +517,38 @@ const Releases: React.FC = () => {
   useEffect(() => {
     fetchReleases();
   }, [fetchReleases]);
+
+  // Handle click outside to close filter dropdowns
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (
+        filterCompetitorRef.current &&
+        !filterCompetitorRef.current.contains(event.target as Node) &&
+        isCompetitorFilterOpen
+      ) {
+        setIsCompetitorFilterOpen(false);
+      }
+      if (
+        filterCategoryRef.current &&
+        !filterCategoryRef.current.contains(event.target as Node) &&
+        isCategoryFilterOpen
+      ) {
+        setIsCategoryFilterOpen(false);
+      }
+      if (
+        filterDateRef.current &&
+        !filterDateRef.current.contains(event.target as Node) &&
+        isDateFilterOpen
+      ) {
+        setIsDateFilterOpen(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [isCompetitorFilterOpen, isCategoryFilterOpen, isDateFilterOpen]);
 
   const handleSendEmailClick = () => {
     setShowEmailModal(true);
@@ -672,7 +966,7 @@ const Releases: React.FC = () => {
             border: '1px solid #e0f2fe',
             marginLeft: 'auto'
           }}>
-            Change the text of message to "Data get's synced every 24 hours to Notion" {' '}
+            Data gets synced every 24 hours to Notion {' '}
             <a 
               href="https://www.notion.so/mindbody/EagleEye-Analysis-Releases-264dda30e23180118e6dc67f9ad20d55"
               target="_blank"
@@ -707,68 +1001,94 @@ const Releases: React.FC = () => {
             className="search-input"
           />
         </div>
-        <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
-          <button 
-            className="inline-action-button"
-            onClick={() => navigate('/onboarding?step=1')}
-          >
-            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-              <path d="M8 3V13M3 8H13" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
-            </svg>
-            Add Company
-          </button>
-          <button 
-            className="inline-action-button"
-            onClick={() => navigate('/onboarding?step=2')}
-          >
-            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-              <path d="M8 3V13M3 8H13" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
-            </svg>
-            Add Category
-          </button>
-          <button 
-            className="inline-action-button" 
-            onClick={handleSendEmailClick}
-            disabled={isSending}
-          >
-            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-              <path d="M2 4L8 9L14 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-              <rect x="2" y="3" width="12" height="10" rx="1" stroke="currentColor" strokeWidth="1.5"/>
-            </svg>
-            Send Email
-          </button>
-          <button 
-            className="inline-action-button"
-            onClick={handleExportCSV}
-          >
-            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-              <path d="M13 8V13H3V8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-              <path d="M8 3V10M8 10L5.5 7.5M8 10L10.5 7.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-            </svg>
-            Export CSV
-          </button>
-          {/*<button 
-            className="rerun-button"
-            onClick={handleRerunAnalysis}
-            disabled={isAnalyzing}
-          >
-            {isAnalyzing ? (
-              <>
-                <svg className="spinning" width="16" height="16" viewBox="0 0 16 16" fill="none">
-                  <circle cx="8" cy="8" r="6" stroke="currentColor" strokeWidth="2" strokeDasharray="9.42 9.42" strokeLinecap="round"/>
-                </svg>
-                Analyzing...
-              </>
-            ) : (
-              <>
-                <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                  <path d="M14 8C14 11.3137 11.3137 14 8 14C4.68629 14 2 11.3137 2 8C2 4.68629 4.68629 2 8 2C10.2091 2 12.1046 3.13258 13.1244 4.83337" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
-                  <path d="M14 2V5H11" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-                </svg>
-                Re-run Analysis
-              </>
-            )}
-          </button>*/}
+        <div style={{ display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
+          {/* Action Buttons */}
+          <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+            <button 
+              className="inline-action-button"
+              onClick={() => navigate('/onboarding?step=1')}
+            >
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                <path d="M8 3V13M3 8H13" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+              </svg>
+              Add Company
+            </button>
+            <button 
+              className="inline-action-button"
+              onClick={() => navigate('/onboarding?step=2')}
+            >
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                <path d="M8 3V13M3 8H13" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+              </svg>
+              Add Category
+            </button>
+            <button 
+              className="inline-action-button" 
+              onClick={handleSendEmailClick}
+              disabled={isSending}
+            >
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                <path d="M2 4L8 9L14 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                <rect x="2" y="3" width="12" height="10" rx="1" stroke="currentColor" strokeWidth="1.5"/>
+              </svg>
+              Send Email
+            </button>
+            <button 
+              className="inline-action-button"
+              onClick={handleExportCSV}
+            >
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                <path d="M13 8V13H3V8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                <path d="M8 3V10M8 10L5.5 7.5M8 10L10.5 7.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+              Export CSV
+            </button>
+          </div>
+
+          {/* Filter Controls */}
+          <div style={{ display: 'flex', gap: '8px', alignItems: 'center', marginLeft: 'auto' }}>
+            <FilterDropdown
+              label="Competitor"
+              options={uniqueCompetitors}
+              selectedValues={selectedCompetitors}
+              onChange={setSelectedCompetitors}
+              isOpen={isCompetitorFilterOpen}
+              onToggle={() => {
+                setIsCompetitorFilterOpen(!isCompetitorFilterOpen);
+                setIsCategoryFilterOpen(false);
+                setIsDateFilterOpen(false);
+              }}
+              dropdownRef={filterCompetitorRef}
+            />
+            <FilterDropdown
+              label="Category"
+              options={uniqueCategories}
+              selectedValues={selectedCategories}
+              onChange={setSelectedCategories}
+              isOpen={isCategoryFilterOpen}
+              onToggle={() => {
+                setIsCategoryFilterOpen(!isCategoryFilterOpen);
+                setIsCompetitorFilterOpen(false);
+                setIsDateFilterOpen(false);
+              }}
+              dropdownRef={filterCategoryRef}
+            />
+            <DateFilterDropdown
+              startDate={selectedStartDate}
+              endDate={selectedEndDate}
+              onChange={(start, end) => {
+                setSelectedStartDate(start);
+                setSelectedEndDate(end);
+              }}
+              isOpen={isDateFilterOpen}
+              onToggle={() => {
+                setIsDateFilterOpen(!isDateFilterOpen);
+                setIsCompetitorFilterOpen(false);
+                setIsCategoryFilterOpen(false);
+              }}
+              dropdownRef={filterDateRef}
+            />
+          </div>
         </div>
       </div>
 
