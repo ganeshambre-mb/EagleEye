@@ -69,12 +69,21 @@ interface AnomalyData {
   };
 }
 
+interface ModalContent {
+  title: string;
+  text: string;
+  iconType: 'trending' | 'category' | 'velocity' | 'pattern';
+}
+
 const InsightsGrid: React.FC = () => {
   const [insights, setInsights] = useState<InsightsData | null>(null);
   const [anomalies, setAnomalies] = useState<AnomalyData[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [currentAnomalyIndex, setCurrentAnomalyIndex] = useState(0);
+  const [showModal, setShowModal] = useState(false);
+  const [modalContent, setModalContent] = useState<ModalContent | null>(null);
+  const [isCarouselHovered, setIsCarouselHovered] = useState(false);
 
   // Helper function to format category names
   const formatCategory = (category: string): string => {
@@ -200,14 +209,14 @@ const InsightsGrid: React.FC = () => {
 
   // Auto-rotate carousel
   useEffect(() => {
-    if (anomalies.length <= 1) return;
+    if (anomalies.length <= 1 || isCarouselHovered) return;
     
     const interval = setInterval(() => {
       setCurrentAnomalyIndex((prev) => (prev + 1) % anomalies.length);
     }, 5000); // Rotate every 5 seconds
 
     return () => clearInterval(interval);
-  }, [anomalies.length]);
+  }, [anomalies.length, isCarouselHovered]);
 
   const goToNext = () => {
     setCurrentAnomalyIndex((prev) => (prev + 1) % anomalies.length);
@@ -221,24 +230,82 @@ const InsightsGrid: React.FC = () => {
     setCurrentAnomalyIndex(index);
   };
 
-  return (
-    <div className="insights-grid">
-      {/* Trending Insight */}
-      <div className="insight-card trending">
-        <div className="insight-icon-wrapper trending-icon">
+  const openModal = (title: string, text: string, iconType: 'trending' | 'category' | 'velocity' | 'pattern') => {
+    setModalContent({ title, text, iconType });
+    setShowModal(true);
+  };
+
+  const closeModal = () => {
+    setShowModal(false);
+    setModalContent(null);
+  };
+
+  const getIconSvg = (iconType: 'trending' | 'category' | 'velocity' | 'pattern') => {
+    switch (iconType) {
+      case 'trending':
+        return (
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
             <path d="M3 17L9 11L13 15L21 7" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
             <path d="M14 7H21V14" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
           </svg>
+        );
+      case 'category':
+        return (
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+            <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="2"/>
+            <circle cx="12" cy="12" r="5" stroke="currentColor" strokeWidth="2"/>
+            <circle cx="12" cy="12" r="2" fill="currentColor"/>
+          </svg>
+        );
+      case 'velocity':
+        return (
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+            <path d="M13 2L3 14h8l-1 8 10-12h-8l1-8z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+          </svg>
+        );
+      case 'pattern':
+        return (
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+            <circle cx="12" cy="12" r="2" fill="currentColor"/>
+            <circle cx="6" cy="6" r="2" fill="currentColor"/>
+            <circle cx="18" cy="6" r="2" fill="currentColor"/>
+            <circle cx="6" cy="18" r="2" fill="currentColor"/>
+            <circle cx="18" cy="18" r="2" fill="currentColor"/>
+            <path d="M12 10V14M10 12H14M7 7L10.5 10.5M14.5 10.5L18 7M7 17L10.5 13.5M14.5 13.5L18 17" stroke="currentColor" strokeWidth="1.5"/>
+          </svg>
+        );
+    }
+  };
+
+  return (
+    <div className="insights-grid">
+      {/* Trending Insight */}
+      <div 
+        className="insight-card trending"
+        onClick={() => insights && openModal(
+          '📊 Trending Insight', 
+          insights.trending_insight
+            .replace(/\+?\d+%/g, (match) => `<strong class="highlight-teal">${match}</strong>`)
+            .replace(/\d+ features?/g, (match) => `<strong class="highlight-teal">${match}</strong>`),
+          'trending'
+        )}
+      >
+        <div className="insight-header">
+          <div className="insight-icon-wrapper trending-icon">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+              <path d="M3 17L9 11L13 15L21 7" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+              <path d="M14 7H21V14" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+          </div>
+          <h3 className="insight-title" style={{ textAlign: 'left' }}>📊 Trending Insight</h3>
         </div>
         <div className="insight-content">
-          <h3 className="insight-title" style={{ textAlign: 'left' }}>📊 Trending Insight</h3>
           {isLoading ? (
             <p className="insight-text" style={{ textAlign: 'left' }}>Loading insights...</p>
           ) : error ? (
             <p className="insight-text" style={{ color: '#ef4444', textAlign: 'left' }}>Error loading data</p>
           ) : insights ? (
-            <p className="insight-text" style={{ textAlign: 'left' }} dangerouslySetInnerHTML={{ 
+            <p className="insight-text insight-text-truncated" style={{ textAlign: 'left' }} dangerouslySetInnerHTML={{ 
               __html: insights.trending_insight
                 .replace(/\+?\d+%/g, (match) => `<strong class="highlight-teal">${match}</strong>`)
                 .replace(/\d+ features?/g, (match) => `<strong class="highlight-teal">${match}</strong>`)
@@ -253,22 +320,34 @@ const InsightsGrid: React.FC = () => {
       </div>
 
       {/* Category Leader */}
-      <div className="insight-card category">
-        <div className="insight-icon-wrapper category-icon">
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
-            <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="2"/>
-            <circle cx="12" cy="12" r="5" stroke="currentColor" strokeWidth="2"/>
-            <circle cx="12" cy="12" r="2" fill="currentColor"/>
-          </svg>
+      <div 
+        className="insight-card category"
+        onClick={() => insights && openModal(
+          '🏆 Category Leader',
+          insights.category_leader
+            .replace(/'([^']+)' category/g, (_match, category) => `<strong class="highlight-blue">${formatCategory(category)} category</strong>`)
+            .replace(/\d+ new releases?/g, (match) => `<strong class="highlight-blue">${match}</strong>`)
+            .replace(/\d+ companies?/g, (match) => `<strong class="highlight-blue">${match}</strong>`),
+          'category'
+        )}
+      >
+        <div className="insight-header">
+          <div className="insight-icon-wrapper category-icon">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+              <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="2"/>
+              <circle cx="12" cy="12" r="5" stroke="currentColor" strokeWidth="2"/>
+              <circle cx="12" cy="12" r="2" fill="currentColor"/>
+            </svg>
+          </div>
+          <h3 className="insight-title" style={{ textAlign: 'left' }}>🏆 Category Leader</h3>
         </div>
         <div className="insight-content">
-          <h3 className="insight-title" style={{ textAlign: 'left' }}>🏆 Category Leader</h3>
           {isLoading ? (
             <p className="insight-text" style={{ textAlign: 'left' }}>Loading insights...</p>
           ) : error ? (
             <p className="insight-text" style={{ color: '#ef4444', textAlign: 'left' }}>Error loading data</p>
           ) : insights ? (
-            <p className="insight-text" style={{ textAlign: 'left' }} dangerouslySetInnerHTML={{ 
+            <p className="insight-text insight-text-truncated" style={{ textAlign: 'left' }} dangerouslySetInnerHTML={{ 
               __html: insights.category_leader
                 .replace(/'([^']+)' category/g, (_match, category) => `<strong class="highlight-blue">${formatCategory(category)} category</strong>`)
                 .replace(/\d+ new releases?/g, (match) => `<strong class="highlight-blue">${match}</strong>`)
@@ -284,20 +363,32 @@ const InsightsGrid: React.FC = () => {
       </div>
 
       {/* Velocity Alert */}
-      <div className="insight-card velocity">
-        <div className="insight-icon-wrapper velocity-icon">
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
-            <path d="M13 2L3 14h8l-1 8 10-12h-8l1-8z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-          </svg>
+      <div 
+        className="insight-card velocity"
+        onClick={() => insights && openModal(
+          '💨 Velocity Alert',
+          insights.velocity_alert
+            .replace(/\d+ features?/g, (match) => `<strong class="highlight-purple">${match}</strong>`)
+            .replace(/\+?\d+%/g, (match) => `<strong class="highlight-purple">${match}</strong>`)
+            .replace(/Q\d+ \d+/g, (match) => `<strong class="highlight-purple">${match}</strong>`),
+          'velocity'
+        )}
+      >
+        <div className="insight-header">
+          <div className="insight-icon-wrapper velocity-icon">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+              <path d="M13 2L3 14h8l-1 8 10-12h-8l1-8z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+          </div>
+          <h3 className="insight-title" style={{ textAlign: 'left' }}>💨 Velocity Alert</h3>
         </div>
         <div className="insight-content">
-          <h3 className="insight-title" style={{ textAlign: 'left' }}>💨 Velocity Alert</h3>
           {isLoading ? (
             <p className="insight-text" style={{ textAlign: 'left' }}>Loading insights...</p>
           ) : error ? (
             <p className="insight-text" style={{ color: '#ef4444', textAlign: 'left' }}>Error loading data</p>
           ) : insights ? (
-            <p className="insight-text" style={{ textAlign: 'left' }} dangerouslySetInnerHTML={{ 
+            <p className="insight-text insight-text-truncated" style={{ textAlign: 'left' }} dangerouslySetInnerHTML={{ 
               __html: insights.velocity_alert
                 .replace(/\d+ features?/g, (match) => `<strong class="highlight-purple">${match}</strong>`)
                 .replace(/\+?\d+%/g, (match) => `<strong class="highlight-purple">${match}</strong>`)
@@ -315,25 +406,55 @@ const InsightsGrid: React.FC = () => {
       </div>
 
       {/* Pattern Detected */}
-      <div className="insight-card pattern">
-        <div className="insight-icon-wrapper pattern-icon">
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
-            <circle cx="12" cy="12" r="2" fill="currentColor"/>
-            <circle cx="6" cy="6" r="2" fill="currentColor"/>
-            <circle cx="18" cy="6" r="2" fill="currentColor"/>
-            <circle cx="6" cy="18" r="2" fill="currentColor"/>
-            <circle cx="18" cy="18" r="2" fill="currentColor"/>
-            <path d="M12 10V14M10 12H14M7 7L10.5 10.5M14.5 10.5L18 7M7 17L10.5 13.5M14.5 13.5L18 17" stroke="currentColor" strokeWidth="1.5"/>
-          </svg>
+      <div 
+        className="insight-card pattern"
+        onMouseEnter={() => setIsCarouselHovered(true)}
+        onMouseLeave={() => setIsCarouselHovered(false)}
+        onClick={() => {
+          if (anomalies && anomalies.length > 0) {
+            const currentAnomaly = anomalies[currentAnomalyIndex];
+            openModal(
+              '🎯 Pattern Detected',
+              `<div style="margin-bottom: 16px;">
+                <strong class="highlight-teal" style="display: block; margin-bottom: 8px; font-size: 1.1rem;">${currentAnomaly.feature.name}</strong>
+                <span style="display: inline-block; font-size: 0.875rem; padding: 4px 10px; border-radius: 6px; background-color: ${
+                  getSeverity(currentAnomaly.business_rank) === 'high' ? '#fee2e2' : 
+                  getSeverity(currentAnomaly.business_rank) === 'medium' ? '#fef3c7' : '#f3f4f6'
+                }; color: ${
+                  getSeverity(currentAnomaly.business_rank) === 'high' ? '#dc2626' : 
+                  getSeverity(currentAnomaly.business_rank) === 'medium' ? '#d97706' : '#6b7280'
+                }; font-weight: 600; text-transform: uppercase; margin-bottom: 12px;">${getSeverity(currentAnomaly.business_rank)}</span>
+              </div>
+              <p style="margin-bottom: 12px;">${currentAnomaly.business_reason || 'Anomaly detected in release patterns'}</p>
+              <p style="color: #6b7280; font-size: 0.9375rem;"><strong>Company:</strong> ${currentAnomaly.feature.company_name}</p>
+              <p style="color: #6b7280; font-size: 0.9375rem;"><strong>Feature Summary:</strong> ${currentAnomaly.feature.summary}</p>
+              <p style="color: #6b7280; font-size: 0.9375rem;"><strong>Category:</strong> ${formatCategory(currentAnomaly.feature.category)}</p>
+              <p style="color: #6b7280; font-size: 0.9375rem;"><strong>Business Value Score:</strong> ${currentAnomaly.business_value_score.toFixed(2)}</p>`,
+              'pattern'
+            );
+          }
+        }}
+      >
+        <div className="insight-header">
+          <div className="insight-icon-wrapper pattern-icon">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+              <circle cx="12" cy="12" r="2" fill="currentColor"/>
+              <circle cx="6" cy="6" r="2" fill="currentColor"/>
+              <circle cx="18" cy="6" r="2" fill="currentColor"/>
+              <circle cx="6" cy="18" r="2" fill="currentColor"/>
+              <circle cx="18" cy="18" r="2" fill="currentColor"/>
+              <path d="M12 10V14M10 12H14M7 7L10.5 10.5M14.5 10.5L18 7M7 17L10.5 13.5M14.5 13.5L18 17" stroke="currentColor" strokeWidth="1.5"/>
+            </svg>
+          </div>
+          <h3 className="insight-title" style={{ textAlign: 'left' }}>🎯 Pattern Detected</h3>
         </div>
         <div className="insight-content">
-          <h3 className="insight-title" style={{ textAlign: 'left' }}>🎯 Pattern Detected</h3>
           {isLoading ? (
             <p className="insight-text" style={{ textAlign: 'left' }}>Loading patterns...</p>
           ) : anomalies && anomalies.length > 0 ? (
             <div style={{ 
               position: 'relative',
-              minHeight: '140px', // Fixed height to prevent layout shift
+              minHeight: '80px',
               overflow: 'hidden',
               paddingBottom: anomalies.length > 1 ? '32px' : '0', // Space for dots indicator
               width: '100%',
@@ -356,18 +477,19 @@ const InsightsGrid: React.FC = () => {
                       style={{
                         width: `${slideWidth}%`,
                         flexShrink: 0,
-                        paddingRight: '8px',
+                        paddingLeft: anomalies.length > 1 ? '28px' : '0',
+                        paddingRight: anomalies.length > 1 ? '28px' : '0',
                         boxSizing: 'border-box',
                         textAlign: 'left'
                       }}
                     >
-                      <div style={{ textAlign: 'left' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px', gap: '12px' }}>
-                          <strong className="highlight-teal" style={{ flex: 1, textAlign: 'left' }}>
+                      <div style={{ textAlign: 'left', width: '100%', position: 'relative' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px', gap: '8px' }}>
+                          <strong className="highlight-teal" style={{ flex: 1, textAlign: 'left', fontSize: '0.875rem' }}>
                             {anomaly.feature.name}
                           </strong>
                           <span style={{ 
-                            fontSize: '0.75rem', 
+                            fontSize: '0.7rem', 
                             fontWeight: '600',
                             color: severity === 'high' ? '#ef4444' : severity === 'medium' ? '#f59e0b' : '#6b7280',
                             textTransform: 'uppercase',
@@ -379,10 +501,36 @@ const InsightsGrid: React.FC = () => {
                             {severity}
                           </span>
                         </div>
-                        <p className="insight-text" style={{ margin: 0, fontSize: '0.875rem', lineHeight: '1.5', textAlign: 'left' }}>
-                          {anomaly.business_reason || 'Anomaly detected in release patterns'}
-                          <span style={{ color: '#6b7280', fontSize: '0.8125rem' }}> • {anomaly.feature.company_name}</span>
-                        </p>
+                        <div style={{ 
+                          textAlign: 'left',
+                          maxHeight: '3.2em',
+                          overflow: 'hidden',
+                          lineHeight: '1.6',
+                          position: 'relative'
+                        }}>
+                          <p className="insight-text" style={{ 
+                            margin: 0, 
+                            fontSize: '0.9rem', 
+                            lineHeight: '1.6', 
+                            textAlign: 'left',
+                            display: 'inline'
+                          }}>
+                            {(() => {
+                              const fullText = `${anomaly.business_reason || 'Anomaly detected in release patterns'} • ${anomaly.feature.company_name}`;
+                              return fullText.length > 100 ? `${fullText.substring(0, 100)}...` : fullText;
+                            })()}
+                            {' '}
+                            <span style={{ 
+                              color: '#3b82f6', 
+                              fontSize: '0.875rem', 
+                              fontWeight: '500',
+                              cursor: 'pointer',
+                              whiteSpace: 'nowrap'
+                            }}>
+                              Show more
+                            </span>
+                          </p>
+                        </div>
                       </div>
                     </div>
                   );
@@ -394,54 +542,78 @@ const InsightsGrid: React.FC = () => {
                 <>
                   {/* Previous Button */}
                   <button
-                    onClick={goToPrevious}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      goToPrevious();
+                    }}
                     style={{
                       position: 'absolute',
-                      left: '0',
+                      left: '2px',
                       top: '50%',
                       transform: 'translateY(-50%)',
-                      background: 'rgba(255, 255, 255, 0.9)',
-                      border: '1px solid #e5e7eb',
+                      background: 'rgba(255, 255, 255, 0.98)',
+                      border: '1px solid #d1d5db',
                       borderRadius: '50%',
-                      width: '28px',
-                      height: '28px',
+                      width: '24px',
+                      height: '24px',
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
                       cursor: 'pointer',
                       zIndex: 10,
-                      boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
+                      boxShadow: '0 2px 6px rgba(0,0,0,0.12)',
+                      transition: 'all 0.2s ease'
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.background = '#ffffff';
+                      e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.18)';
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.background = 'rgba(255, 255, 255, 0.98)';
+                      e.currentTarget.style.boxShadow = '0 2px 6px rgba(0,0,0,0.12)';
                     }}
                     aria-label="Previous anomaly"
                   >
-                    <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                    <svg width="12" height="12" viewBox="0 0 16 16" fill="none">
                       <path d="M10 12L6 8L10 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
                     </svg>
                   </button>
 
                   {/* Next Button */}
                   <button
-                    onClick={goToNext}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      goToNext();
+                    }}
                     style={{
                       position: 'absolute',
-                      right: '0',
+                      right: '2px',
                       top: '50%',
                       transform: 'translateY(-50%)',
-                      background: 'rgba(255, 255, 255, 0.9)',
-                      border: '1px solid #e5e7eb',
+                      background: 'rgba(255, 255, 255, 0.98)',
+                      border: '1px solid #d1d5db',
                       borderRadius: '50%',
-                      width: '28px',
-                      height: '28px',
+                      width: '24px',
+                      height: '24px',
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
                       cursor: 'pointer',
                       zIndex: 10,
-                      boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
+                      boxShadow: '0 2px 6px rgba(0,0,0,0.12)',
+                      transition: 'all 0.2s ease'
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.background = '#ffffff';
+                      e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.18)';
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.background = 'rgba(255, 255, 255, 0.98)';
+                      e.currentTarget.style.boxShadow = '0 2px 6px rgba(0,0,0,0.12)';
                     }}
                     aria-label="Next anomaly"
                   >
-                    <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                    <svg width="12" height="12" viewBox="0 0 16 16" fill="none">
                       <path d="M6 4L10 8L6 12" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
                     </svg>
                   </button>
@@ -460,7 +632,10 @@ const InsightsGrid: React.FC = () => {
                     {anomalies.map((_, index) => (
                       <button
                         key={index}
-                        onClick={() => goToSlide(index)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          goToSlide(index);
+                        }}
                         style={{
                           width: currentAnomalyIndex === index ? '24px' : '8px',
                           height: '8px',
@@ -485,6 +660,30 @@ const InsightsGrid: React.FC = () => {
           )}
         </div>
       </div>
+
+      {/* Insight Modal */}
+      {showModal && modalContent && (
+        <div className="insight-modal-overlay" onClick={closeModal}>
+          <div className="insight-modal-content" onClick={(e) => e.stopPropagation()}>
+            <div className="insight-modal-header">
+              <div className="insight-modal-title-wrapper">
+                <div className={`insight-modal-icon ${modalContent.iconType}-icon`}>
+                  {getIconSvg(modalContent.iconType)}
+                </div>
+                <h3 className="insight-modal-title">{modalContent.title}</h3>
+              </div>
+              <button className="insight-modal-close" onClick={closeModal}>
+                <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+                  <path d="M15 5L5 15M5 5L15 15" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+                </svg>
+              </button>
+            </div>
+            <div className="insight-modal-body">
+              <p className="insight-modal-text" dangerouslySetInnerHTML={{ __html: modalContent.text }} />
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

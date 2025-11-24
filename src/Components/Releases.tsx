@@ -680,8 +680,10 @@ const Releases: React.FC = () => {
         <h3 style={{ fontSize: '1.25rem', fontWeight: '600', color: '#1a1a1a', marginBottom: '8px', textAlign: 'left' }}>
           Key Insights
         </h3>
-        <p style={{ fontSize: '0.875rem', color: '#6b7280', textAlign: 'left' }}>
-          Market intelligence at a glance
+        <p style={{ fontSize: '0.875rem', color: '#6b7280', textAlign: 'left', lineHeight: '1.6' }}>
+          Market intelligence at a glance<br />
+          Interactive carousels showcasing competitive analysis and trends<br />
+          Navigate through insights to discover opportunities and stay ahead
         </p>
       </div>
 
@@ -699,9 +701,10 @@ const Releases: React.FC = () => {
             backgroundColor: '#f0f9ff',
             padding: '6px 12px',
             borderRadius: '16px',
-            border: '1px solid #e0f2fe'
+            border: '1px solid #e0f2fe',
+            marginLeft: 'auto'
           }}>
-            Data automatically gets synced in the background to a Notion{' '}
+            Change the text of message to "Data get's synced every 24 hours to Notion" {' '}
             <a 
               href="https://www.notion.so/mindbody/EagleEye-Analysis-Releases-264dda30e23180118e6dc67f9ad20d55"
               target="_blank"
