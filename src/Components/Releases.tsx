@@ -657,9 +657,33 @@ const Releases: React.FC = () => {
 
       {/* Releases Section */}
       <div className="section-header" style={{ marginBottom: '20px', marginTop: '40px', textAlign: 'left' }}>
-        <h3 style={{ fontSize: '1.25rem', fontWeight: '600', color: '#1a1a1a', marginBottom: '8px', textAlign: 'left' }}>
-          Release Tracker
-        </h3>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '16px', marginBottom: '8px' }}>
+          <h3 style={{ fontSize: '1.25rem', fontWeight: '600', color: '#1a1a1a', margin: 0, textAlign: 'left' }}>
+            Release Tracker
+          </h3>
+          <span style={{ 
+            fontSize: '0.875rem', 
+            color: '#1e40af',
+            backgroundColor: '#f0f9ff',
+            padding: '6px 12px',
+            borderRadius: '16px',
+            border: '1px solid #e0f2fe'
+          }}>
+            Data automatically gets synced in the background to a Notion{' '}
+            <a 
+              href="https://www.notion.so/mindbody/EagleEye-Analysis-Releases-264dda30e23180118e6dc67f9ad20d55"
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{ 
+                color: '#1d4ed8', 
+                textDecoration: 'underline',
+                fontWeight: '500'
+              }}
+            >
+              page
+            </a>
+          </span>
+        </div>
         <p style={{ fontSize: '0.875rem', color: '#6b7280', textAlign: 'left' }}>
           All competitor feature releases and updates
         </p>
@@ -698,6 +722,27 @@ const Releases: React.FC = () => {
               <path d="M8 3V13M3 8H13" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
             </svg>
             Add Category
+          </button>
+          <button 
+            className="inline-action-button" 
+            onClick={handleSendEmailClick}
+            disabled={isSending}
+          >
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+              <path d="M2 4L8 9L14 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+              <rect x="2" y="3" width="12" height="10" rx="1" stroke="currentColor" strokeWidth="1.5"/>
+            </svg>
+            Send Email
+          </button>
+          <button 
+            className="inline-action-button"
+            onClick={handleExportCSV}
+          >
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+              <path d="M13 8V13H3V8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+              <path d="M8 3V10M8 10L5.5 7.5M8 10L10.5 7.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+            Export CSV
           </button>
           {/*<button 
             className="rerun-button"
@@ -748,36 +793,7 @@ const Releases: React.FC = () => {
         </div>
       )}
 
-      {/* Action Buttons */}
-      <div className="action-buttons">
-        {/*<button className="action-btn primary-btn">
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-            <path d="M8 3V13M3 8H13" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
-          </svg>
-          Add Manually
-        </button>*/}
-        <button 
-          className="action-btn secondary-btn" 
-          onClick={handleSendEmailClick}
-          disabled={isSending}
-        >
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-            <path d="M2 4L8 9L14 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-            <rect x="2" y="3" width="12" height="10" rx="1" stroke="currentColor" strokeWidth="1.5"/>
-          </svg>
-          Send Email
-        </button>
-        <button 
-          className="action-btn secondary-btn"
-          onClick={handleExportCSV}
-        >
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-            <path d="M13 8V13H3V8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-            <path d="M8 3V10M8 10L5.5 7.5M8 10L10.5 7.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-          </svg>
-          Export CSV
-        </button>
-      </div>
+
 
       {/* Table */}
       <div className="table-container" ref={tableContainerRef}>
